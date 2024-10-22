@@ -15,9 +15,11 @@
 import paramiko
 import getpass
 import re
+import os
 import sys
 import subprocess
 import configparser
+
 
 # Creating a configuration object
 config = configparser.ConfigParser()
@@ -32,6 +34,7 @@ GREENL = '\u001b[32;1m'  # ANSI Escape sequence for bright green color
 YELLOW = '\u001b[33m' # ANSI Escape sequence for yellow
 YELLOWL = '\u001b[33;1m' # ANSI Escape sequence for bright yellow
 PURPLE = '\u001b[35;1m' # ANSI Escape sequence for magenta
+WHITE_ON_BLACK = '\033[7;37;40m' # ANSI escape sequence for white background and black font
 RESET = '\033[0m'     # ANSI Escape sequence for color reset
 
 
@@ -42,7 +45,17 @@ port = int(config['Connection']['port'])  # Converting a port to an integer
 username = config['Connection']['username']
 debug = int(config['Connection']['debug'])  # Convert debug to an integer
 count = 0
-password = getpass.getpass("Введите код доступа к ядру сети: ")
+
+
+# Function to clear the screen
+def clear_screen():
+    # Clear the screen based on the operating system
+    os.system('cls' if os.name == 'nt' else 'clear')
+    
+password = getpass.getpass(f"{WHITE_ON_BLACK}Введите код доступа к ядру сети: {RESET}")
+# Call the function to clear the screen
+clear_screen()
+
 
 def ping_host(host):
     process = subprocess.Popen(['ping', '-c', '1', host], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -220,8 +233,16 @@ def execute_script(hostname_int, port_int, username_int, password_int, mac_int,c
         print("Поиск завершен")
 
 # Check for passed command arguments when calling the script
-if len(sys.argv) < 2:
-    print('Использование: python findMac.py "MAC"')
-else:
-    mac = sys.argv[1]
+#if len(sys.argv) < 2:
+#    print('Использование: python findMac.py "MAC"')
+#else:
+#    mac = sys.argv[1]
+
+while True:
+    print("--- Для выхода введите quit или q ---")
+    in_mac = input(f"{WHITE_ON_BLACK}Введите MAC-адрес искомого устройства: {RESET}")
+    mac = in_mac.lower()
+    clear_screen()
+    if mac == "quit" or mac == "q":
+        break
     execute_script(hostname, port, username, password, mac, count)
