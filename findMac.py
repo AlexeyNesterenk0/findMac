@@ -11,7 +11,7 @@
 #- Configuration file: config.ini (contains connection parameters)
 #- Dependencies: Paramiko library, configparser library
 #===========================================================
-
+from tqdm import tqdm
 import paramiko
 import getpass
 import re
@@ -229,6 +229,11 @@ def find_unmanaged_switch(port_int,channel_int):
     else:
         return False
 
+def erase_line():
+    print('\033[F', end='')  # Удалить предыдущую строку
+    print(' '*160)  # Замещение текущей строки пробелами
+    print('\033[F', end='')  # Удалить предыдущую строку
+
 def output_info(ip_address_int,mac_int):
     print(f"Информация об устройстве с физическим адресом {GREENL}{mac_int}{RESET}:")
     print('\n')
@@ -247,9 +252,11 @@ def output_info(ip_address_int,mac_int):
             
 def response_vendor(mac_int):
     # Make a GET request to the API URL with SSL verification disabled
-    response = requests.get(f"https://api.maclookup.app/v2/macs/{mac_int}", verify=False)    
-    if response.status_code == 200: # Check if the request was successful
-        data = response.json()  # Convert the response content to JSON format        
+    for _ in tqdm(range(10), desc="Запрос информации о вендоре", unit="%"):
+        response = requests.get(f"https://api.maclookup.app/v2/macs/{mac_int}", verify=False)    
+        if response.status_code == 200: # Check if the request was successful
+            data = response.json()  # Convert the response content to JSON format
+    erase_line()
     properties = ["company", "country", "updated"] # Display specific properties in a formatted list
     for prop in properties:
         print(f"        {BLUE}{prop}{RESET}        {GREEN}{data.get(prop, 'N/A')}{RESET}")
@@ -267,14 +274,18 @@ def execute_script(core_int,hostname_int, port_int, username_int, password_int, 
     vlan = None
     lag = None
     lag_ports = None
-    output = run_ssh_command(channel, f"show mac add | inc {mac_int}")
-    ccname = find_cctname(output)
-    port, vlan = find_mac_address(output, mac_int)
+    for _ in tqdm(range(10), desc=f"Поиск MAC на {hostname_int}", unit="%"):
+        output = run_ssh_command(channel, f"show mac add | inc {mac_int}")
+        ccname = find_cctname(output)
+        port, vlan = find_mac_address(output, mac_int)
+    erase_line()
     str_lag_ports = ''
     if port is not None:
         if count_int == 0:
-            output = run_ssh_command(channel, f"show arp | inc {mac_int}")
-            ip_address = find_ip_address(output)
+            for _ in tqdm(range(10), desc=f"Запрос IP", unit="%"):
+                output = run_ssh_command(channel, f"show arp | inc {mac_int}")
+                ip_address = find_ip_address(output)
+            erase_line()
             output_info(ip_address,mac)
             print(f"MAC-адрес {GREENL}{mac_int}{RESET} обнаружен:")
             lag = find_lag(port)
@@ -293,13 +304,17 @@ def execute_script(core_int,hostname_int, port_int, username_int, password_int, 
         output=''
         if lag_ports is not None:
             for lag_port in lag_ports:
+                #for _ in tqdm(range(10), desc=f"Поиск следующего коммутатора", unit="%"):
                 output = run_ssh_command(channel, f"show lldp neighbors | inc {lag_port}")
                 next_hostname = find_next_hostname(output,lag_port)
+                #erase_line()
                 if next_hostname is not None:
                     break
         else:
+            #for _ in tqdm(range(10), desc=f"Поиск следующего коммутатора", unit="%"):
             output = run_ssh_command(channel, f"show lldp neighbors | inc {port}")
             next_hostname = find_next_hostname(output,port)
+            #erase_line()
     else:
         print(f"MAC-адрес {GREENL}{mac}{RESET} не обнаружен в сети")
             
@@ -332,8 +347,7 @@ def execute_script(core_int,hostname_int, port_int, username_int, password_int, 
 #else:
 #    mac = sys.argv[1]
 #password = enter_pass()
-while True:
-    print('\n')    
+while True:    
     print(f"{GREY}--- Для выхода введите quit или q ---{RESET}")
     in_mac = input(f"{WHITE_ON_BLACK}Введите MAC-адрес искомого устройства: {RESET}")
     mac = in_mac.lower()
