@@ -7,7 +7,7 @@
 #The script interacts with network devices based on the provided configuration parameters in the config.ini file.
 #===========================================================
 #- Author: Alexey Nesterenko
-#- Date: 21.10.2024
+#- Date: 10.2024
 #- Configuration file: config.ini (contains connection parameters)
 #- Dependencies: Paramiko library, configparser library
 #===========================================================
@@ -24,14 +24,14 @@ import requests
 import warnings
 
 warnings.filterwarnings("ignore") # Filter out all warnings
-config = configparser.ConfigParser() # Creating a configuration object
-config.read('config.ini') # Reading the configuration file
+config = configparser.ConfigParser()  # Creating a configuration object
+config.read('config.ini')   # Reading the configuration file
 
-RED = '\033[91m'      # ANSI Escape sequence for red
+RED = '\033[91m'  # ANSI Escape sequence for red
 BLUE = '\u001b[34;1m'   # ANSI Escape sequence for blue
-GREEN = '\u001b[32m'  # ANSI Escape sequence for green
-GREENL = '\u001b[32;1m'  # ANSI Escape sequence for bright green color
-YELLOW = '\u001b[33m' # ANSI Escape sequence for yellow
+GREEN = '\u001b[32m'    # ANSI Escape sequence for green
+GREENL = '\u001b[32;1m'    # ANSI Escape sequence for bright green color
+YELLOW = '\u001b[33m'   # ANSI Escape sequence for yellow
 YELLOWL = '\u001b[33;1m' # ANSI Escape sequence for bright yellow
 PURPLE = '\u001b[35;1m' # ANSI Escape sequence for magenta
 WHITE_ON_BLACK = '\033[7;37;40m' # ANSI escape sequence for white background and black font
@@ -51,20 +51,19 @@ count = 0
 
 
 def check_mac_address(mac_address):
-    mac_pattern = re.compile(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$') # Regular expression for checking the MAC address
+    mac_pattern = re.compile(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$')  # Regular expression for checking the MAC address
 
     if mac_pattern.match(mac_address):
         return True
     else:
         return False
 
-# Function to clear the screen
-def clear_screen():
-    os.system('cls' if os.name == 'nt' else 'clear') # Clear the screen based on the operating system
+def clear_screen(): # Function to clear the screen
+    os.system('cls' if os.name == 'nt' else 'clear')  # Clear the screen based on the operating system
     
 def enter_pass():    
     result = getpass.getpass(f"{WHITE_ON_BLACK}Введите код доступа к ядру сети: {RESET}")
-    clear_screen() # Call the function to clear the screen
+    clear_screen()  # Call the function to clear the screen
     return result
 
 def reconnect(hostname_int):
@@ -88,8 +87,8 @@ def ping_host(host,packet):
 def establish_ssh_connection(core_int,hostname_int, port_int, username_int, password_int): # Function to establish an SSH connection
     client = paramiko.SSHClient() # Create an SSH client object
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    if hostname_int == core_int and not ping_host(hostname_int,'1'):  # Check if the hostname is the core and if it is not reachable
-        reconnect(hostname_int)   # Reconnect to the host if it is the core and not reachable     
+    if hostname_int == core_int and not ping_host(hostname_int,'1'): # Check if the hostname is the core and if it is not reachable
+        reconnect(hostname_int)       # Reconnect to the host if it is the core and not reachable  
     try: # Try to establish an SSH connection using the specified parameters
         client.connect(hostname_int, port_int, username_int, password_int)
     except Exception as e:
@@ -97,11 +96,12 @@ def establish_ssh_connection(core_int,hostname_int, port_int, username_int, pass
         in_ansver = input(f"{WHITE_ON_BLACK}Повторить попытку авторизации?: Y/N (N) {RESET}") # Prompt user to retry authorization
         if in_ansver.lower() == "y" or in_ansver.lower() == "yes":
             client.close()
-            password_int = enter_pass()  Enter password again
+            password_int = enter_pass()
             ping_host(hostname_int,'4')
             establish_ssh_connection(core_int,hostname_int, port_int, username_int, password_int) # Recursive call to retry connection
         else:
-            sys.exit()      # Exit the program  
+            sys.exit() # Exit the program
+        
     if debug:
         print("Соединение установлено")
     return client, password_int # Return the SSH client object and password
@@ -144,11 +144,11 @@ def find_mac_address(output_int, mac_int):
         print(f"Vlan    {vlan_int}")
     return port_int if port_int else None, vlan_int if vlan_int else None
 
-def find_ip_address(output_int):
+def find_ip_address(output_int, port_int):
     lines = output_int.split('\n')
     ip_int = None
     for line in lines:
-        if 'vlan' in line and 'dyn' in line:
+        if port_int in line:
             parts = line.split()
             ip_int = parts[3]
             break
@@ -221,8 +221,8 @@ def find_unmanaged_switch(port_int,channel_int):
 
 def erase_line():
     print('\033[F', end='')  # Remove the previous 
-    print(' '*160) # Replace the current line with 
-    print('\033[F', end='') # Remove the previous 
+    print(' '*160)   # Replace the current line with
+    print('\033[F', end='')  # Remove the previous 
 
 def output_info(ip_address_int,mac_int):
     print(f"Информация об устройстве с физическим адресом {GREENL}{mac_int}{RESET}:")
@@ -240,10 +240,9 @@ def output_info(ip_address_int,mac_int):
             print(f"        {BLUE}hostname{RESET}       {YELLOWL}{hostname_by_ip_crop}{RESET}")
     print('\n')
             
-def response_vendor(mac_int):
-    # Make a GET request to the API URL with SSL verification disabled
+def response_vendor(mac_int):   
     for _ in tqdm(range(10), desc="Запрос информации о вендоре", unit="%"):
-        response = requests.get(f"https://api.maclookup.app/v2/macs/{mac_int}", verify=False)    
+        response = requests.get(f"https://api.maclookup.app/v2/macs/{mac_int}", verify=False)    # Make a GET request to the API URL with SSL verification disabled
         if response.status_code == 200: # Check if the request was successful
             data = response.json()  # Convert the response content to JSON format
     erase_line()
@@ -274,7 +273,7 @@ def execute_script(core_int,hostname_int, port_int, username_int, password_int, 
         if count_int == 0:
             for _ in tqdm(range(10), desc=f"Запрос IP", unit="%"):
                 output = run_ssh_command(channel, f"show arp | inc {mac_int}")
-                ip_address = find_ip_address(output)
+                ip_address = find_ip_address(output, port)
             erase_line()
             output_info(ip_address,mac)
             print(f"MAC-адрес {GREENL}{mac_int}{RESET} обнаружен:")
@@ -343,7 +342,7 @@ while True:
     mac = in_mac.lower()
     if mac == "quit" or mac == "q":
         break
-    if check_mac_address(mac):     
+    if check_mac_address(mac.strip()):     
         clear_screen()
         execute_script(hostname, hostname, port, username, password, mac, count)
     else:
