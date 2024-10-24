@@ -23,14 +23,9 @@ import socket
 import requests
 import warnings
 
-
-# Filter out all warnings
-warnings.filterwarnings("ignore")
-# Creating a configuration object
-config = configparser.ConfigParser()
-
-# Reading the configuration file
-config.read('config.ini')
+warnings.filterwarnings("ignore") # Filter out all warnings
+config = configparser.ConfigParser() # Creating a configuration object
+config.read('config.ini') # Reading the configuration file
 
 RED = '\033[91m'      # ANSI Escape sequence for red
 BLUE = '\u001b[34;1m'   # ANSI Escape sequence for blue
@@ -56,8 +51,7 @@ count = 0
 
 
 def check_mac_address(mac_address):
-    # Регулярное выражение для проверки MAC-адреса
-    mac_pattern = re.compile(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$')
+    mac_pattern = re.compile(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$') # Regular expression for checking the MAC address
 
     if mac_pattern.match(mac_address):
         return True
@@ -66,14 +60,12 @@ def check_mac_address(mac_address):
 
 # Function to clear the screen
 def clear_screen():
-    # Clear the screen based on the operating system
-    os.system('cls' if os.name == 'nt' else 'clear')
+    os.system('cls' if os.name == 'nt' else 'clear') # Clear the screen based on the operating system
     
 def enter_pass():    
     result = getpass.getpass(f"{WHITE_ON_BLACK}Введите код доступа к ядру сети: {RESET}")
+    clear_screen() # Call the function to clear the screen
     return result
-    # Call the function to clear the screen
-    clear_screen()
 
 def reconnect(hostname_int):
     print(f"Узел {hostname_int} недоступен")
@@ -85,7 +77,6 @@ def reconnect(hostname_int):
             reconnect(hostname_int)
     else:
         sys.exit()
-
     
 def ping_host(host,packet):
     process = subprocess.Popen(['ping', '-c', packet, host], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -94,27 +85,26 @@ def ping_host(host,packet):
         print(output)
     return True if not error else False
 
-def establish_ssh_connection(core_int,hostname_int, port_int, username_int, password_int):
-    client = paramiko.SSHClient()
+def establish_ssh_connection(core_int,hostname_int, port_int, username_int, password_int): # Function to establish an SSH connection
+    client = paramiko.SSHClient() # Create an SSH client object
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    if hostname_int == core_int and not ping_host(hostname_int,'1'):
-        reconnect(hostname_int)        
-    try:
+    if hostname_int == core_int and not ping_host(hostname_int,'1'):  # Check if the hostname is the core and if it is not reachable
+        reconnect(hostname_int)   # Reconnect to the host if it is the core and not reachable     
+    try: # Try to establish an SSH connection using the specified parameters
         client.connect(hostname_int, port_int, username_int, password_int)
     except Exception as e:
         print(f"Авторизация не пройдена")
-        in_ansver = input(f"{WHITE_ON_BLACK}Повторить попытку авторизации?: Y/N (N) {RESET}")
+        in_ansver = input(f"{WHITE_ON_BLACK}Повторить попытку авторизации?: Y/N (N) {RESET}") # Prompt user to retry authorization
         if in_ansver.lower() == "y" or in_ansver.lower() == "yes":
             client.close()
-            password_int = enter_pass()
+            password_int = enter_pass()  Enter password again
             ping_host(hostname_int,'4')
-            establish_ssh_connection(core_int,hostname_int, port_int, username_int, password_int)
+            establish_ssh_connection(core_int,hostname_int, port_int, username_int, password_int) # Recursive call to retry connection
         else:
-            sys.exit()
-        
+            sys.exit()      # Exit the program  
     if debug:
         print("Соединение установлено")
-    return client, password_int
+    return client, password_int # Return the SSH client object and password
 
 def open_channel(core_int,hostname_int, port_int, username_int, password_int):
     client, password_int = establish_ssh_connection(core_int,hostname_int, port_int, username_int, password_int)
@@ -230,9 +220,9 @@ def find_unmanaged_switch(port_int,channel_int):
         return False
 
 def erase_line():
-    print('\033[F', end='')  # Удалить предыдущую строку
-    print(' '*160)  # Замещение текущей строки пробелами
-    print('\033[F', end='')  # Удалить предыдущую строку
+    print('\033[F', end='')  # Remove the previous 
+    print(' '*160) # Replace the current line with 
+    print('\033[F', end='') # Remove the previous 
 
 def output_info(ip_address_int,mac_int):
     print(f"Информация об устройстве с физическим адресом {GREENL}{mac_int}{RESET}:")
