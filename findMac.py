@@ -43,11 +43,11 @@ RESET = '\033[0m'     # ANSI Escape sequence for color reset
 # Getting values from a file
 hostname = config['Connection']['hostname']
 location = config['Connection']['location']
-port = int(config['Connection']['port'])  # Converting a port to an integer
+ssh_port = int(config['Connection']['port'])  # Converting a port to an integer
 username = config['Connection']['username']
 password = config['Connection']['password']
 debug = int(config['Connection']['debug'])  # Convert debug to an integer
-debug = 1
+#debug = 1
 count = 0
 
 
@@ -67,14 +67,14 @@ def enter_pass():
     clear_screen()  # Call the function to clear the screen
     return result
 
-def reconnect(hostname_int):
-    print(f"Узел {hostname_int} недоступен")
+def reconnect(hostname_intro):
+    print(f"Узел {hostname_intro} недоступен")
     in_ansver = input(f"{WHITE_ON_BLACK}Повторить попытку подключения?: Y/N (N) {RESET}")
     if in_ansver.lower() == "y" or in_ansver.lower() == "yes":
-        if ping_host(hostname_int,'4'):
+        if ping_host(hostname_intro,'4'):
             return True
         else:
-            reconnect(hostname_int)
+            reconnect(hostname_intro)
     else:
         sys.exit()
     
@@ -85,30 +85,30 @@ def ping_host(host,packet):
         print(output)
     return True if not error else False
 
-def establish_ssh_connection(core_int,hostname_int, port_int, username_int, password_int): # Function to establish an SSH connection
+def establish_ssh_connection(core_intro,hostname_intro, ssh_port_intro, username_intro, password_intro): # Function to establish an SSH connection
     client = paramiko.SSHClient() # Create an SSH client object
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    if hostname_int == core_int and not ping_host(hostname_int,'1'): # Check if the hostname is the core and if it is not reachable
-        reconnect(hostname_int)       # Reconnect to the host if it is the core and not reachable  
+    if hostname_intro == core_intro and not ping_host(hostname_intro,'1'): # Check if the hostname is the core and if it is not reachable
+        reconnect(hostname_intro)       # Reconnect to the host if it is the core and not reachable  
     try: # Try to establish an SSH connection using the specified parameters
-        client.connect(hostname_int, port_int, username_int, password_int)
+        client.connect(hostname_intro, ssh_port_intro, username_intro, password_intro)
     except Exception as e:
         print(f"Авторизация не пройдена")
         in_ansver = input(f"{WHITE_ON_BLACK}Повторить попытку авторизации?: Y/N (N) {RESET}") # Prompt user to retry authorization
         if in_ansver.lower() == "y" or in_ansver.lower() == "yes":
             client.close()
-            password_int = enter_pass()
-            ping_host(hostname_int,'4')
-            establish_ssh_connection(core_int,hostname_int, port_int, username_int, password_int) # Recursive call to retry connection
+            password_intro = enter_pass()
+            ping_host(hostname_intro,'4')
+            establish_ssh_connection(core_intro,hostname_intro, ssh_port_intro, username_intro, password_intro) # Recursive call to retry connection
         else:
             sys.exit() # Exit the program
         
     if debug:
         print("Соединение установлено")
-    return client, password_int # Return the SSH client object and password
+    return client, password_intro # Return the SSH client object and password
 
-def open_channel(core_int,hostname_int, port_int, username_int, password_int):
-    client, password_int = establish_ssh_connection(core_int,hostname_int, port_int, username_int, password_int)
+def open_channel(core_intro,hostname_intro, ssh_port_intro, username_intro, password_intro):
+    client, password_intro = establish_ssh_connection(core_intro,hostname_intro, ssh_port_intro, username_intro, password_intro)
     channel = client.invoke_shell()
     output = ''
     while True:
@@ -116,7 +116,7 @@ def open_channel(core_int,hostname_int, port_int, username_int, password_int):
             output += channel.recv(1024).decode('utf-8')
             if output.endswith('#') or output.endswith('>'):
                 break
-    return channel, password_int
+    return channel, password_intro
 
 def run_ssh_command(channel, command):
     channel.send(command + '\n')
@@ -130,91 +130,93 @@ def run_ssh_command(channel, command):
         print(output)
     return output
 
-def find_mac_address(output_int, mac_int):
-    lines = output_int.split('\n')
-    port_int = None
-    vlan_int = None
+def find_mac_address(output_intro, mac_intro):
+    lines = output_intro.split('\n')
+    port_intro = None
+    vlan_intro = None
     for line in lines:
-        if 'dyn' in line and mac in line:
-            parts = line.split()
-            port_int = parts[2]
-            vlan_int = parts[0]
-            break
-        if 'self' in line:
-            port_int = 'self'
+        if "self" in line:           
+            port_intro = "self"
+            break 
+        else:      
+            if 'dyn' in line and mac in line:
+                parts = line.split()
+                port_intro = parts[2]
+                vlan_intro = parts[0]
+                break
     if debug:
-        print(f"Порт    {port_int}")
-        print(f"Vlan    {vlan_int}")
-    return port_int if port_int else None, vlan_int if vlan_int else None
+        print(f"Порт    {port_intro}")
+        print(f"Vlan    {vlan_intro}")
+    return port_intro if port_intro else None, vlan_intro if vlan_intro else None
 
-def find_ip_address(output_int, port_int):
-    lines = output_int.split('\n')
-    ip_int = None
+def find_ip_address(output_intro, port_intro):
+    lines = output_intro.split('\n')
+    ip_intro = None
     for line in lines:
-        if port_int in line:
+        if port_intro in line:
             parts = line.split()
-            ip_int = parts[3]
+            ip_intro = parts[3]
             break
     if debug:
-        print(f"IPv4    {ip_int}")
-    return ip_int if ip_int else None
+        print(f"IPv4    {ip_intro}")
+    return ip_intro if ip_intro else None
 
-def find_cctname(output_int):
-    result = re.search(r"\w-\d-\w", output_int)
+def find_cctname(output_intro):
+    result = re.search(r"\w-\d-\w", output_intro)
     return result.group() if result else None
 
-def find_next_hostname(output_int, port_int):
+def find_next_hostname(output_intro, port_intro):
     result = None
-    lines = output_int.split('\n')
+    lines = output_intro.split('\n')
     for line in lines:
         parts = line.split()
         port_in_part0 = parts[0]
-        if port_in_part0 == port_int:
+        if port_in_part0 == port_intro:
             result = re.search(r"[sS][wW]\d+", line)
             break
     return result.group() if result else None
 
-def find_lag(port_int):
-    output_int = re.search(r"Po\d+", port_int)
-    if output_int is not None:
-        result = output_int.group()
+def find_lag(port_intro):
+    output_intro = re.search(r"Po\d+", port_intro)
+    if output_intro is not None:
+        result = output_intro.group()
         if debug:
             print(f"LAG    {result}")
         return result if result else None
     else:
         return None
 
-def find_lag_ports(lag_int,channel_int):
-    number_lag = re.search(r"\d+", lag_int)
+def find_lag_ports(lag_intro,channel_intro):
+    number_lag = re.search(r"\d+", lag_intro)
     str_number_lag = number_lag.group()
-    output_int = run_ssh_command(channel_int, f"show interfaces channel-group {str_number_lag}")
+    output_intro = run_ssh_command(channel_intro, f"show interfaces channel-group {str_number_lag}")
     result = None
-    str_lag_ports_int = ''
-    lines = output_int.split('\n')
+    str_lag_ports_intro = ''
+    lines = output_intro.split('\n')
     for line in lines:
-        if 'Act' in line and lag_int in line:
+        if 'Act' in line and lag_intro in line:
             parts = line.split(':')
-            str_lag_ports_int = parts[1].strip()
+            str_lag_ports_intro = parts[1].strip()
             if debug:
-                print(f"str Порты в LAG    {str_lag_ports_int}")
+                print(f"str Порты в LAG    {str_lag_ports_intro}")
             break
-    if str_lag_ports_int:
-        result = str_lag_ports_int.split(",")
+    if str_lag_ports_intro:
+        result = str_lag_ports_intro.split(",")
         if debug:
             print(f"array Порты в LAG    {result}")
     return result if result else None
 
-def find_unmanaged_switch(port_int,channel_int):
-    output_int = run_ssh_command(channel_int, f"show mac add int {port_int}")
+def find_unmanaged_switch(port_intro,channel_intro):
+    output_intro = run_ssh_command(channel_intro, f"show mac add int {port_intro}")
     if debug:
-        print(output_int)
+        print(output_intro)
    
     mac_count = 0
-    mac_int = None
-    mac_int = re.findall(r'([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})',output_int)
+    mac_intro = None
+    mac_intro = re.findall(r'([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})',output_intro)
     
-    if mac_int is not None:
-        mac_count = len(mac_int)
+    if mac_intro is not None:
+        mac_count = len(mac_intro)
     if debug:
         print(mac_count)
     if mac_count > 1:
@@ -227,15 +229,15 @@ def erase_line():
     print(' '*160)   # Replace the current line with
     print('\033[F', end='')  # Remove the previous 
 
-def output_info(ip_address_int,mac_int):
-    print(f"Информация об устройстве с физическим адресом {GREENL}{mac_int}{RESET}:")
+def output_info(ip_address_intro,mac_intro):
+    print(f"Информация об устройстве с физическим адресом {GREENL}{mac_intro}{RESET}:")
     print('\n')
-    response_vendor(mac_int)
-    if ip_address_int is not None:
-        print(f"        {BLUE}IPv4{RESET}           {YELLOWL}{ip_address_int}{RESET}")
+    response_vendor(mac_intro)
+    if ip_address_intro is not None:
+        print(f"        {BLUE}IPv4{RESET}           {YELLOWL}{ip_address_intro}{RESET}")
         hostname_by_ip = None
         try:
-            hostname_by_ip = socket.gethostbyaddr(ip_address_int)[0] # Get the hostname corresponding to the IP address
+            hostname_by_ip = socket.gethostbyaddr(ip_address_intro)[0] # Get the hostname corresponding to the IP address
             hostname_by_ip_crop =hostname_by_ip.split('.')[0]
         except socket.herror as e:
             hostname_by_ip_crop = None
@@ -243,9 +245,9 @@ def output_info(ip_address_int,mac_int):
             print(f"        {BLUE}hostname{RESET}       {YELLOWL}{hostname_by_ip_crop}{RESET}")
     print('\n')
             
-def response_vendor(mac_int):   
+def response_vendor(mac_intro):   
     for _ in tqdm(range(10), desc="Запрос информации о вендоре", unit="%"):
-        response = requests.get(f"https://api.maclookup.app/v2/macs/{mac_int}", verify=False)    # Make a GET request to the API URL with SSL verification disabled
+        response = requests.get(f"https://api.maclookup.app/v2/macs/{mac_intro}", verify=False)    # Make a GET request to the API URL with SSL verification disabled
         if response.status_code == 200: # Check if the request was successful
             data = response.json()  # Convert the response content to JSON format
     erase_line()
@@ -256,48 +258,48 @@ def response_vendor(mac_int):
         return False
     
                 
-def execute_script(core_int,hostname_int, port_int, username_int, password_int, mac_int,count_int):
-    channel, password_int = open_channel(core_int,hostname_int, port_int, username_int, password_int)
+def execute_script(core_intro,hostname_intro, ssh_port_intro, username_intro, password_intro, mac_intro,count_intro):
+    channel, password_intro = open_channel(core_intro,hostname_intro, ssh_port_intro, username_intro, password_intro)
     ccname = ''  
     output = ''
     ip_address = None
     next_hostname = None
-    port = None
+    port_intro = None
     vlan = None
     lag = None
     lag_ports = None
-    for _ in tqdm(range(10), desc=f"Поиск MAC на {hostname_int}", unit="%"):
-        output = run_ssh_command(channel, f"show mac add | inc {mac_int}")
+    for _ in tqdm(range(10), desc=f"Поиск MAC на {hostname_intro}", unit="%"):
+        output = run_ssh_command(channel, f"show mac add | inc {mac_intro}")
         ccname = find_cctname(output)
-        port, vlan = find_mac_address(output, mac_int)
+        port_intro, vlan = find_mac_address(output, mac_intro)
     erase_line()
     str_lag_ports = ''
-    if port_int is not None:
-        if count_int == 0:
+    if port_intro is not None:
+        if count_intro == 0:
             for _ in tqdm(range(10), desc=f"Запрос IP", unit="%"):
-                output = run_ssh_command(channel, f"show arp | inc {mac_int}")
-                ip_address = find_ip_address(output, port)
+                output = run_ssh_command(channel, f"show arp | inc {mac_intro}")
+                ip_address = find_ip_address(output, port_intro)
             erase_line()
-            output_info(ip_address,mac)
-            print(f"MAC-адрес {GREENL}{mac_int}{RESET} обнаружен:")
-            if port_int is 'self':
-                print(f"                     и это коммутатор {GREEN}{hostname_int}{RESET}  в {PURPLE}{location}{RESET}")
+            output_info(ip_address,mac_intro)
+            print(f"MAC-адрес {GREENL}{mac_intro}{RESET} обнаружен:")
+            if port_intro is 'self':
+                print(f"                     и это коммутатор {GREEN}{hostname_intro}{RESET}  в {PURPLE}{location}{RESET}")
             else:
-                lag = find_lag(port)
+                lag = find_lag(port_intro)
                 if lag is not None:
                     lag_ports = find_lag_ports(lag,channel)
                     if debug:
                         print(f"Порты в LAG    {lag_ports}")
                     if lag_ports is not None:
                         str_lag_ports = ",".join(lag_ports)
-                    print(f"                     в группе портов {YELLOW}{lag}{RESET} на портах {YELLOWL}{str_lag_ports}{RESET} коммутатора {GREEN}{hostname_int}{RESET}  в {PURPLE}{location}{RESET}")
+                    print(f"                     в группе портов {YELLOW}{lag}{RESET} на портах {YELLOWL}{str_lag_ports}{RESET} коммутатора {GREEN}{hostname_intro}{RESET}  в {PURPLE}{location}{RESET}")
                 else:  
-                    print(f"                     на порту {YELLOWL}{port}{RESET} коммутатора {GREEN}{hostname_int}{RESET}  в {PURPLE}{location}{RESET}")
+                    print(f"                     на порту {YELLOWL}{port}{RESET} коммутатора {GREEN}{hostname_intro}{RESET}  в {PURPLE}{location}{RESET}")
         else:
-            if port_int is 'self':
-                print(f"                    это коммутатор {GREEN}{hostname_int}{RESET}  в КШ {PURPLE}{ccname}{RESET}",end = ' ')
+            if port_intro is 'self':
+                print(f"                     это коммутатор {GREEN}{hostname_intro}{RESET}  в КШ {PURPLE}{ccname}{RESET}",end = ' ')
             else:
-                print(f"                     на порту {YELLOWL}{port}{RESET} коммутатора {GREEN}{hostname_int}{RESET}  в КШ {PURPLE}{ccname}{RESET} в {YELLOW}{vlan}{RESET} VLAN",end = ' ')
+                print(f"                     на порту {YELLOWL}{port}{RESET} коммутатора {GREEN}{hostname_intro}{RESET}  в КШ {PURPLE}{ccname}{RESET} в {YELLOW}{vlan}{RESET} VLAN",end = ' ')
         output=''
         if lag_ports is not None:
             for lag_port in lag_ports:
@@ -309,29 +311,29 @@ def execute_script(core_int,hostname_int, port_int, username_int, password_int, 
                     break
         else:
             #for _ in tqdm(range(10), desc=f"Поиск следующего коммутатора", unit="%"):
-            output = run_ssh_command(channel, f"show lldp neighbors | inc {port}")
-            next_hostname = find_next_hostname(output,port)
+            output = run_ssh_command(channel, f"show lldp neighbors | inc {port_intro}")
+            next_hostname = find_next_hostname(output,port_intro)
             #erase_line()
     else:
         print(f"MAC-адрес {GREENL}{mac}{RESET} не обнаружен в сети")
             
    
-    if next_hostname is not None and next_hostname!=hostname_int:
-        count_int+=1
+    if next_hostname is not None and next_hostname!=hostname_intro:
+        count_intro+=1
         if ping_host(next_hostname,'1'):
             if debug:
                 print(f"Узел {PURPLE}{next_hostname}{RESET} доступен")
             channel.close()
-            channel, password_int = open_channel(core_int, hostname_int, port_int, username_int, password_int)
-            execute_script(core_int,next_hostname, port_int, username_int, password_int, mac_int, count_int)
+            channel, password_intro = open_channel(core_intro, hostname_intro, ssh_port_intro, username_intro, password_intro)
+            execute_script(core_intro,next_hostname, ssh_port_intro, username_intro, password_intro, mac_intro, count_intro)
         else:
             print("", end='\n')
             print(f"                     где-то за {PURPLE}{next_hostname}{RESET}, {RED}но этот узел недоступен для анализа{RESET}")            
             channel.close()
             print("Поиск завершен")
     else:
-        channel, password_int = open_channel(core_int,hostname_int, port_int, username_int, password_int)
-        if find_unmanaged_switch(port,channel):
+        channel, password_intro = open_channel(core_intro,hostname_intro, ssh_port_intro, username_intro, password_intro)
+        if find_unmanaged_switch(port_intro,channel):
             print(f"{RED}где-то за неуправляемым свичем{RESET}" )
         else:
             print("", end='\n')      
@@ -352,7 +354,7 @@ while True:
         break
     if check_mac_address(mac.strip()):     
         clear_screen()
-        execute_script(hostname, hostname, port, username, password, mac, count)
+        execute_script(hostname, hostname, ssh_port, username, password, mac, count)
     else:
         print(f"{WHITE_ON_BLACK}Некоректный MAC-адрес{RESET}")
         print(f"{WHITE_ON_BLACK}Ожидается ввод типа AA:BB:CC:DD:EE:FF {RESET}")
