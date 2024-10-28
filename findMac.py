@@ -47,7 +47,7 @@ port = int(config['Connection']['port'])  # Converting a port to an integer
 username = config['Connection']['username']
 password = config['Connection']['password']
 debug = int(config['Connection']['debug'])  # Convert debug to an integer
-#debug = 1
+debug = 1
 count = 0
 
 
@@ -140,6 +140,8 @@ def find_mac_address(output_int, mac_int):
             port_int = parts[2]
             vlan_int = parts[0]
             break
+        if 'self' in line:
+            port_int = 'self'
     if debug:
         print(f"Порт    {port_int}")
         print(f"Vlan    {vlan_int}")
@@ -270,7 +272,7 @@ def execute_script(core_int,hostname_int, port_int, username_int, password_int, 
         port, vlan = find_mac_address(output, mac_int)
     erase_line()
     str_lag_ports = ''
-    if port is not None:
+    if port_int is not None:
         if count_int == 0:
             for _ in tqdm(range(10), desc=f"Запрос IP", unit="%"):
                 output = run_ssh_command(channel, f"show arp | inc {mac_int}")
@@ -278,19 +280,24 @@ def execute_script(core_int,hostname_int, port_int, username_int, password_int, 
             erase_line()
             output_info(ip_address,mac)
             print(f"MAC-адрес {GREENL}{mac_int}{RESET} обнаружен:")
-            lag = find_lag(port)
-            if lag is not None:
-                lag_ports = find_lag_ports(lag,channel)
-                if debug:
-                    print(f"Порты в LAG    {lag_ports}")
-                if lag_ports is not None:
-                    str_lag_ports = ",".join(lag_ports)
-                print(f"                     в группе портов {YELLOW}{lag}{RESET} на портах {YELLOWL}{str_lag_ports}{RESET} коммутатора {GREEN}{hostname_int}{RESET}  в {PURPLE}{location}{RESET}")
-            else:  
-                print(f"                     на порту {YELLOWL}{port}{RESET} коммутатора {GREEN}{hostname_int}{RESET}  в {PURPLE}{location}{RESET}")
+            if port_int is 'self':
+                print(f"                     и это коммутатор {GREEN}{hostname_int}{RESET}  в {PURPLE}{location}{RESET}")
+            else:
+                lag = find_lag(port)
+                if lag is not None:
+                    lag_ports = find_lag_ports(lag,channel)
+                    if debug:
+                        print(f"Порты в LAG    {lag_ports}")
+                    if lag_ports is not None:
+                        str_lag_ports = ",".join(lag_ports)
+                    print(f"                     в группе портов {YELLOW}{lag}{RESET} на портах {YELLOWL}{str_lag_ports}{RESET} коммутатора {GREEN}{hostname_int}{RESET}  в {PURPLE}{location}{RESET}")
+                else:  
+                    print(f"                     на порту {YELLOWL}{port}{RESET} коммутатора {GREEN}{hostname_int}{RESET}  в {PURPLE}{location}{RESET}")
         else:
-
-            print(f"                     на порту {YELLOWL}{port}{RESET} коммутатора {GREEN}{hostname_int}{RESET}  в КШ {PURPLE}{ccname}{RESET} в {YELLOW}{vlan}{RESET} VLAN",end = ' ')
+            if port_int is 'self':
+                print(f"                    это коммутатор {GREEN}{hostname_int}{RESET}  в КШ {PURPLE}{ccname}{RESET}",end = ' ')
+            else:
+                print(f"                     на порту {YELLOWL}{port}{RESET} коммутатора {GREEN}{hostname_int}{RESET}  в КШ {PURPLE}{ccname}{RESET} в {YELLOW}{vlan}{RESET} VLAN",end = ' ')
         output=''
         if lag_ports is not None:
             for lag_port in lag_ports:
