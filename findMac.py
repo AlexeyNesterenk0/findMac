@@ -10,7 +10,6 @@
 #- Date: 10.2024
 #- Configuration file: config.ini (contains connection parameters)
 #- Dependencies: Paramiko library, configparser library
-#Test 01
 #===========================================================
 from tqdm import tqdm
 import paramiko
