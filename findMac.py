@@ -309,7 +309,7 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
             erase_line()
             output_info(ip_address,mac_loc)
             print(f"MAC-адрес {GREENL}{mac_loc}{RESET} обнаружен:")
-            if port_loc is 'self':
+            if port_loc == 'self':
                 print(f"                     и это коммутатор {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
             else:
                 lag = find_lag(port_loc)
@@ -323,7 +323,7 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
                 else:  
                     print(f"                     на порту {YELLOWL}{port}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
         else:
-            if port_loc is 'self':
+            if port_loc == 'self':
                 print(f"                     это коммутатор {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET}",end = ' ')
             else:
                 print(f"                     на порту {YELLOWL}{port_loc}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET} в {YELLOW}{vlan}{RESET} VLAN",end = ' ')
