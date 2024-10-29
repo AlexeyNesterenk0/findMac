@@ -78,7 +78,7 @@ def reconnect(hostname_intro):
         sys.exit()
     
 def ping_host(host,packet):
-    process = subprocess.Popen(['ping', '-c', packet, host], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen(['ping', '-c', packet, host], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
     output, error = process.communicate()
     if debug:
         print(output)
@@ -224,9 +224,9 @@ def find_unmanaged_switch(port_intro,channel_intro):
         return False
 
 def erase_line():
-    print('\033[F', end='')  # Remove the previous 
+    print('\033[F', end = '')  # Remove the previous 
     print(' '*160)   # Replace the current line with
-    print('\033[F', end='')  # Remove the previous 
+    print('\033[F', end = '')  # Remove the previous 
 
 def output_info(ip_address_intro,mac_intro):
     print(f"Информация об устройстве с физическим адресом {GREENL}{mac_intro}{RESET}:")
@@ -237,7 +237,7 @@ def output_info(ip_address_intro,mac_intro):
         hostname_by_ip = None
         try:
             hostname_by_ip = socket.gethostbyaddr(ip_address_intro)[0] # Get the hostname corresponding to the IP address
-            hostname_by_ip_crop =hostname_by_ip.split('.')[0]
+            hostname_by_ip_crop = hostname_by_ip.split('.')[0]
         except socket.herror as e:
             hostname_by_ip_crop = None
         if hostname_by_ip_crop is not None:             
@@ -245,7 +245,7 @@ def output_info(ip_address_intro,mac_intro):
     print('\n')
             
 def response_vendor(mac_intro):   
-    for _ in tqdm(range(10), desc="Запрос информации о вендоре", unit="%"):
+    for _ in tqdm(range(10), desc="Запрос информации о вендоре", unit = "%"):
         response = requests.get(f"https://api.maclookup.app/v2/macs/{mac_intro}", verify=False)    # Make a GET request to the API URL with SSL verification disabled
         if response.status_code == 200: # Check if the request was successful
             data = response.json()  # Convert the response content to JSON format
@@ -267,7 +267,7 @@ def execute_script(core_intro,hostname_intro, ssh_port_intro, username_intro, pa
     vlan = None
     lag = None
     lag_ports = None
-    for _ in tqdm(range(10), desc=f"Поиск MAC на {hostname_intro}", unit="%"):
+    for _ in tqdm(range(10), desc=f"Поиск MAC на {hostname_intro}", unit = "%"):
         output = run_ssh_command(channel, f"show mac add | inc {mac_intro}")
         ccname = find_cctname(output)
         port_intro, vlan = find_mac_address(output, mac_intro)
@@ -275,7 +275,7 @@ def execute_script(core_intro,hostname_intro, ssh_port_intro, username_intro, pa
     str_lag_ports = ''
     if port_intro is not None:
         if count_intro == 0:
-            for _ in tqdm(range(10), desc=f"Запрос IP", unit="%"):
+            for _ in tqdm(range(10), desc=f"Запрос IP", unit = "%"):
                 output = run_ssh_command(channel, f"show arp | inc {mac_intro}")
                 ip_address = find_ip_address(output, port_intro)
             erase_line()
@@ -326,7 +326,7 @@ def execute_script(core_intro,hostname_intro, ssh_port_intro, username_intro, pa
             channel, password_intro = open_channel(core_intro, hostname_intro, ssh_port_intro, username_intro, password_intro)
             execute_script(core_intro,next_hostname, ssh_port_intro, username_intro, password_intro, mac_intro, count_intro)
         else:
-            print("", end='\n')
+            print("", end = '\n')
             print(f"                     где-то за {PURPLE}{next_hostname}{RESET}, {RED}но этот узел недоступен для анализа{RESET}")            
             channel.close()
             print("Поиск завершен")
@@ -335,7 +335,7 @@ def execute_script(core_intro,hostname_intro, ssh_port_intro, username_intro, pa
         if find_unmanaged_switch(port_intro,channel):
             print(f"{RED}где-то за неуправляемым свичем{RESET}" )
         else:
-            print("", end='\n')      
+            print("", end = '\n')      
         channel.close()
         print("Поиск завершен")
 
