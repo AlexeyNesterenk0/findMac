@@ -46,7 +46,6 @@ ssh_port = int(config['Connection']['port'])  # Converting a port to an integer
 username = config['Connection']['username']
 password = config['Connection']['password']
 debug = int(config['Connection']['debug'])  # Convert debug to an integer
-debug = 1
 count = 0
 
 
