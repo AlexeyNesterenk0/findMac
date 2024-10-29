@@ -301,16 +301,16 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
         port_loc, vlan = find_mac_address(output, mac_loc)
     erase_line()
     str_lag_ports = ''
-    if port_intro is not None:
-        if count_intro == 0:
+    if port_loc is not None:
+        if count_loc == 0:
             for _ in tqdm(range(10), desc=f"Запрос IP", unit="%"):
-                output = run_ssh_command(channel, f"show arp | inc {mac_intro}")
-                ip_address = find_ip_address(output, port_intro)
+                output = run_ssh_command(channel, f"show arp | inc {mac_loc}")
+                ip_address = find_ip_address(output, port_loc)
             erase_line()
-            output_info(ip_address,mac_intro)
-            print(f"MAC-адрес {GREENL}{mac_intro}{RESET} обнаружен:")
-            if port_intro is 'self':
-                print(f"                     и это коммутатор {GREEN}{hostname_intro}{RESET}  в {PURPLE}{location}{RESET}")
+            output_info(ip_address,mac_loc)
+            print(f"MAC-адрес {GREENL}{mac_loc}{RESET} обнаружен:")
+            if port_loc is 'self':
+                print(f"                     и это коммутатор {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
             else:
                 lag = find_lag(port_loc)
                 if lag is not None:
@@ -323,8 +323,8 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
                 else:  
                     print(f"                     на порту {YELLOWL}{port}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
         else:
-            if port_intro is 'self':
-                print(f"                     это коммутатор {GREEN}{hostname_intro}{RESET}  в КШ {PURPLE}{ccname}{RESET}",end = ' ')
+            if port_loc is 'self':
+                print(f"                     это коммутатор {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET}",end = ' ')
             else:
                 print(f"                     на порту {YELLOWL}{port_loc}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET} в {YELLOW}{vlan}{RESET} VLAN",end = ' ')
         output=''
