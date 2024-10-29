@@ -394,4 +394,4 @@ while True:
                 execute_script(hostname, hostname, ssh_port, username, password, None, count, ip_by_hostname)                
             else:
               print(f"{WHITE_ON_BLACK}Некоректный MAC или IP -адрес{RESET}")
-        #print(f"{WHITE_ON_BLACK}Ожидается ввод типа AA:BB:CC:DD:EE:FF {RESET}")
+              #print(f"{WHITE_ON_BLACK}Ожидается ввод типа AA:BB:CC:DD:EE:FF {RESET}")
