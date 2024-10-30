@@ -22,6 +22,7 @@ import configparser
 import socket
 import requests
 import warnings
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QMessageBox, QLabel, QLineEdit, QVBoxLayout
 
 warnings.filterwarnings("ignore") # Filter out all warnings
 config = configparser.ConfigParser()  # Creating a configuration object
@@ -48,6 +49,67 @@ password = config['Connection']['password']
 debug = int(config['Connection']['debug'])  # Convert debug to an integer
 count = 0
 
+
+
+class App(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.initUI()
+
+    def initUI(self):
+        self.setGeometry(100, 100, 400, 300)
+        self.setWindowTitle('Поиск устройства по MAC')
+
+        btn = QPushButton('Поиск', self)
+        btn.setToolTip('Запуск поиска')
+        btn.resize(btn.sizeHint())
+        btn.move(310, 250)
+        btn.clicked.connect(self.on_button_click)
+
+        exit_btn = QPushButton('Выход', self)
+        exit_btn.setToolTip('Завершить приложение')
+        exit_btn.resize(exit_btn.sizeHint())
+        exit_btn.move(200, 250)
+        exit_btn.clicked.connect(self.exit_button_click)
+
+        self.label = QLabel('', self)
+        self.label.setGeometry(50, 50, 100, 100)
+
+        self.label.move(10, 10)
+
+        self.line_edit = QLineEdit(self)
+        self.line_edit.resize(self.line_edit.sizeHint())
+        self.line_edit.move(10, 100)
+
+        self.show()
+
+    def set_label_text(self, text):
+        self.label.setText(text)
+
+    def on_button_click(self):
+        input_text = self.line_edit.text()
+        self.set_label_text(input_text)
+        input_parametr(input_text)
+
+    def exit_button_click(self):
+        sys.exit()
+
+def input_parametr(in_string):
+    input_parametr = in_string.lower()
+    if check_mac_address(input_parametr.strip()):     
+        clear_screen()
+        execute_script(hostname, hostname, ssh_port, username, password, input_parametr, count, None)
+    else:
+        if check_ip_address(input_parametr.strip()):  
+            clear_screen()
+            execute_script(hostname, hostname, ssh_port, username, password, None, count, input_parametr)
+        else:
+            if ping_host(input_parametr,'1'):
+                clear_screen()
+                ip_by_hostname = socket.gethostbyname(input_parametr)[0] # Get the hostname corresponding to the IP address
+                execute_script(hostname, hostname, ssh_port, username, password, None, count, ip_by_hostname)                
+            else:
+              print(f"{WHITE_ON_BLACK}Некоректный MAC или IP -адрес{RESET}")
 
 def check_mac_address(mac_address):
     mac_pattern = re.compile(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$')  # Regular expression for checking the MAC address
@@ -258,7 +320,7 @@ def output_info(ip_address_loc,mac_loc):
         try:
             hostname_by_ip = socket.gethostbyaddr(ip_address_loc)[0] # Get the hostname corresponding to the IP address
             socket.gethostbyname
-            hostname_by_ip_crop =hostname_by_ip.split('.')[0]
+            hostname_by_ip_crop = hostname_by_ip.split('.')[0]
         except socket.herror as e:
             hostname_by_ip_crop = None
         if hostname_by_ip_crop is not None:             
@@ -266,7 +328,7 @@ def output_info(ip_address_loc,mac_loc):
     print('\n')
             
 def response_vendor(mac_loc):   
-    for _ in tqdm(range(10), desc="Запрос информации о вендоре", unit="%"):
+    for _ in tqdm(range(10), desc = "Запрос информации о вендоре", unit="%"):
         response = requests.get(f"https://api.maclookup.app/v2/macs/{mac_loc}", verify=False)    # Make a GET request to the API URL with SSL verification disabled
         if response.status_code == 200: # Check if the request was successful
             data = response.json()  # Convert the response content to JSON format
@@ -373,7 +435,13 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
 #else:
 #    mac = sys.argv[1]
 #password = enter_pass()
-while True:    
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    ex = App()
+    sys.exit(app.exec_())
+
+""" while True:    
     print(f"{GREY}--- Для выхода введите quit или q ---{RESET}")
     in_string = input(f"{WHITE_ON_BLACK}Введите IP или MAC-адрес искомого устройства: {RESET}")
     input_parametr = in_string.lower()
@@ -394,3 +462,4 @@ while True:
             else:
               print(f"{WHITE_ON_BLACK}Некоректный MAC или IP -адрес{RESET}")
               #print(f"{WHITE_ON_BLACK}Ожидается ввод типа AA:BB:CC:DD:EE:FF {RESET}")
+ """
