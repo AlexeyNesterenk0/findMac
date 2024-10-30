@@ -22,7 +22,9 @@ import configparser
 import socket
 import requests
 import warnings
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QMessageBox, QLabel, QLineEdit, QVBoxLayout
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QMessageBox, QLabel, QLineEdit, QVBoxLayout, QHBoxLayout
+from PyQt5.QtGui import QMovie
+from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 warnings.filterwarnings("ignore") # Filter out all warnings
 config = configparser.ConfigParser()  # Creating a configuration object
@@ -49,7 +51,24 @@ password = config['Connection']['password']
 debug = int(config['Connection']['debug'])  # Convert debug to an integer
 count = 0
 
+class Worker(QObject):
+    start_signal = pyqtSignal()
+    stop_signal = pyqtSignal()
 
+    def __init__(self, gif_path, gif_label):
+        super().__init__()
+        self.gif_path = gif_path
+        self.gif_label = gif_label
+        self.movie = QMovie(self.gif_path)
+        self.gif_label.setMovie(self.movie)
+        self.start_signal.connect(self.movie.start)
+        self.stop_signal.connect(self.movie.stop)
+
+    def start_animation(self):
+        self.start_signal.emit()
+
+    def stop_animation(self):
+        self.stop_signal.emit()
 
 class App(QWidget):
     def __init__(self):
@@ -60,26 +79,31 @@ class App(QWidget):
         self.setGeometry(100, 100, 400, 300)
         self.setWindowTitle('Поиск устройства по MAC')
 
+        layout = QHBoxLayout()
+
+        self.gif_label = QLabel(self)
+        self.gif_label.setGeometry(320, 1, 100, 100)
+
+        self.worker_thread_search = QThread()
+        self.worker_search = Worker(self.find_gif_in_subfolders('.'), self.gif_label)
+        self.worker_search.moveToThread(self.worker_thread_search)
+        self.worker_thread_search.start()
+
+        self.label = QLabel('', self)
+        self.label.setGeometry(10, 10, 100, 100)
+
+        self.line_edit = QLineEdit(self)
+        self.line_edit.setGeometry(10, 100, 100, 20)
+
         btn = QPushButton('Поиск', self)
         btn.setToolTip('Запуск поиска')
-        btn.resize(btn.sizeHint())
         btn.move(310, 250)
         btn.clicked.connect(self.on_button_click)
 
         exit_btn = QPushButton('Выход', self)
         exit_btn.setToolTip('Завершить приложение')
-        exit_btn.resize(exit_btn.sizeHint())
         exit_btn.move(200, 250)
         exit_btn.clicked.connect(self.exit_button_click)
-
-        self.label = QLabel('', self)
-        self.label.setGeometry(50, 50, 100, 100)
-
-        self.label.move(10, 10)
-
-        self.line_edit = QLineEdit(self)
-        self.line_edit.resize(self.line_edit.sizeHint())
-        self.line_edit.move(10, 100)
 
         self.show()
 
@@ -88,29 +112,36 @@ class App(QWidget):
 
     def on_button_click(self):
         input_text = self.line_edit.text()
-        self.set_label_text(input_text)
-        input_parametr(input_text)
+        self.set_label_text(input_text)        
+        #input_parametr(self, input_text)
 
     def exit_button_click(self):
         sys.exit()
 
-def input_parametr(in_string):
+    def find_gif_in_subfolders(self, folder):
+        for dirpath, _, filenames in os.walk(folder):
+            for filename in filenames:
+                if filename.endswith('loading_animation.gif'):
+                    return os.path.join(dirpath, filename)
+        return None
+
+def input_parametr(self ,in_string):
     input_parametr = in_string.lower()
     if check_mac_address(input_parametr.strip()):     
         clear_screen()
-        execute_script(hostname, hostname, ssh_port, username, password, input_parametr, count, None)
+        execute_script(hostname, hostname, ssh_port, username, password, input_parametr, count, None, self)
     else:
         if check_ip_address(input_parametr.strip()):  
             clear_screen()
-            execute_script(hostname, hostname, ssh_port, username, password, None, count, input_parametr)
+            execute_script(hostname, hostname, ssh_port, username, password, None, count, input_parametr, self)
         else:
             if ping_host(input_parametr,'1'):
                 clear_screen()
                 ip_by_hostname = socket.gethostbyname(input_parametr)[0] # Get the hostname corresponding to the IP address
-                execute_script(hostname, hostname, ssh_port, username, password, None, count, ip_by_hostname)                
+                execute_script(hostname, hostname, ssh_port, username, password, None, count, ip_by_hostname, self)                
             else:
-              print(f"{WHITE_ON_BLACK}Некоректный MAC или IP -адрес{RESET}")
-
+               self.set_label_text(f"{WHITE_ON_BLACK}Некоректный MAC или IP -адрес{RESET}") 
+ 
 def check_mac_address(mac_address):
     mac_pattern = re.compile(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$')  # Regular expression for checking the MAC address
 
@@ -135,48 +166,38 @@ def enter_pass():
     clear_screen()  # Call the function to clear the screen
     return result
 
-def reconnect(hostname_loc):
-    print(f"Узел {hostname_loc} недоступен")
+""" def reconnect(self, hostname_loc):
+     self.set_label_text(f"Узел {hostname_loc} недоступен")
     in_ansver = input(f"{WHITE_ON_BLACK}Повторить попытку подключения?: Y/N (N) {RESET}")
     if in_ansver.lower() == "y" or in_ansver.lower() == "yes":
         if ping_host(hostname_loc,'4'):
             return True
         else:
-            reconnect(hostname_loc)
+            reconnect(self, hostname_loc)
     else:
-        sys.exit()
+        sys.exit() """
     
 def ping_host(host,packet):
     process = subprocess.Popen(['ping', '-c', packet, host], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, error = process.communicate()
     if debug:
-        print(output)
+         self.set_label_text(output)
     return True if not error else False
 
-def establish_ssh_connection(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc): # Function to establish an SSH connection
+def establish_ssh_connection(self, core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc): # Function to establish an SSH connection
     client = paramiko.SSHClient() # Create an SSH client object
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    if hostname_loc == core_loc and not ping_host(hostname_loc,'1'): # Check if the hostname is the core and if it is not reachable
-        reconnect(hostname_loc)       # Reconnect to the host if it is the core and not reachable  
-    try: # Try to establish an SSH connection using the specified parameters
-        client.connect(hostname_loc, ssh_port_loc, username_loc, password_loc)
-    except Exception as e:
-        print(f"Авторизация не пройдена")
-        in_ansver = input(f"{WHITE_ON_BLACK}Повторить попытку авторизации?: Y/N (N) {RESET}") # Prompt user to retry authorization
-        if in_ansver.lower() == "y" or in_ansver.lower() == "yes":
-            client.close()
-            password_loc = enter_pass()
-            ping_host(hostname_loc,'4')
-            establish_ssh_connection(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc) # Recursive call to retry connection
-        else:
-            sys.exit() # Exit the program
-        
-    if debug:
-        print("Соединение установлено")
+    #if hostname_loc == core_loc and not ping_host(hostname_loc,'1'): # Check if the hostname is the core and if it is not reachable
+        #reconnect(self, hostname_loc)       # Reconnect to the host if it is the core and not reachable  
+    #try: # Try to establish an SSH connection using the specified parameters
+    client.connect(hostname_loc, ssh_port_loc, username_loc, password_loc)
+    #except Exception as e:   
+    #if debug:
+         #self.set_label_text("Соединение установлено")
     return client, password_loc # Return the SSH client object and password
 
-def open_channel(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc):
-    client, password_loc = establish_ssh_connection(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc)
+def open_channel(self, core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc):
+    client, password_loc = establish_ssh_connection(self, core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc)
     channel = client.invoke_shell()
     output = ''
     while True:
@@ -195,7 +216,7 @@ def run_ssh_command(channel, command):
             if output.endswith('#') or output.endswith('>'):
                 break
     if debug:
-        print(output)
+         self.set_label_text(output)
     return output
 
 def find_mac_by_ip(output_loc, ip_loc):
@@ -207,7 +228,7 @@ def find_mac_by_ip(output_loc, ip_loc):
             mac_loc = parts[4]
             break
     if debug:
-        print(f"MAC   {mac_loc}")
+         self.set_label_text(f"MAC   {mac_loc}")
     return mac_loc if mac_loc else None
     
 
@@ -226,8 +247,8 @@ def find_mac_address(output_loc, mac_loc):
                 vlan_loc = parts[0]
                 break
     if debug:
-        print(f"Порт    {port_loc}")
-        print(f"Vlan    {vlan_loc}")
+         self.set_label_text(f"Порт    {port_loc}")
+         self.set_label_text(f"Vlan    {vlan_loc}")
     return port_loc if port_loc else None, vlan_loc if vlan_loc else None
 
 def find_ip_address(output_loc, port_loc):
@@ -239,7 +260,7 @@ def find_ip_address(output_loc, port_loc):
             ip_loc = parts[3]
             break
     if debug:
-        print(f"IPv4    {ip_loc}")
+         self.set_label_text(f"IPv4    {ip_loc}")
     return ip_loc if ip_loc else None
 
 def find_cctname(output_loc):
@@ -262,7 +283,7 @@ def find_lag(port_loc):
     if output_loc is not None:
         result = output_loc.group()
         if debug:
-            print(f"LAG    {result}")
+             self.set_label_text(f"LAG    {result}")
         return result if result else None
     else:
         return None
@@ -279,18 +300,18 @@ def find_lag_ports(lag_loc,channel_loc):
             parts = line.split(':')
             str_lag_ports_loc = parts[1].strip()
             if debug:
-                print(f"str Порты в LAG    {str_lag_ports_loc}")
+                 self.set_label_text(f"str Порты в LAG    {str_lag_ports_loc}")
             break
     if str_lag_ports_loc:
         result = str_lag_ports_loc.split(",")
         if debug:
-            print(f"array Порты в LAG    {result}")
+             self.set_label_text(f"array Порты в LAG    {result}")
     return result if result else None
 
 def find_unmanaged_switch(port_loc,channel_loc):
     output_loc = run_ssh_command(channel_loc, f"show mac add int {port_loc}")
     if debug:
-        print(output_loc)
+         self.set_label_text(output_loc)
    
     mac_count = 0
     mac_loc = None
@@ -299,23 +320,23 @@ def find_unmanaged_switch(port_loc,channel_loc):
     if mac_loc is not None:
         mac_count = len(mac_loc)
     if debug:
-        print(mac_count)
+         self.set_label_text(mac_count)
     if mac_count > 1:
         return True
     else:
         return False
 
 def erase_line():
-    print('\033[F', end='')  # Remove the previous 
-    print(' '*160)   # Replace the current line with
-    print('\033[F', end='')  # Remove the previous 
+     self.set_label_text('\033[F', end='')  # Remove the previous 
+     self.set_label_text(' '*160)   # Replace the current line with
+     self.set_label_text('\033[F', end='')  # Remove the previous 
 
-def output_info(ip_address_loc,mac_loc):
-    print(f"Информация об устройстве с физическим адресом {GREENL}{mac_loc}{RESET}:")
-    print('\n')
-    response_vendor(mac_loc)
+def output_info(self, ip_address_loc,mac_loc):
+    self.set_label_text(f"Информация об устройстве с физическим адресом {GREENL}{mac_loc}{RESET}:")
+    self.set_label_text('\n')
+    response_vendor(self, mac_loc)
     if ip_address_loc is not None:
-        print(f"        {BLUE}IPv4{RESET}           {YELLOWL}{ip_address_loc}{RESET}")
+        self.set_label_text(f"        {BLUE}IPv4{RESET}           {YELLOWL}{ip_address_loc}{RESET}")
         hostname_by_ip = None
         try:
             hostname_by_ip = socket.gethostbyaddr(ip_address_loc)[0] # Get the hostname corresponding to the IP address
@@ -324,24 +345,24 @@ def output_info(ip_address_loc,mac_loc):
         except socket.herror as e:
             hostname_by_ip_crop = None
         if hostname_by_ip_crop is not None:             
-            print(f"        {BLUE}hostname{RESET}       {YELLOWL}{hostname_by_ip_crop}{RESET}")
-    print('\n')
+            self.set_label_text(f"        {BLUE}hostname{RESET}       {YELLOWL}{hostname_by_ip_crop}{RESET}")
+    self.set_label_text('\n')
             
-def response_vendor(mac_loc):   
-    for _ in tqdm(range(10), desc = "Запрос информации о вендоре", unit="%"):
-        response = requests.get(f"https://api.maclookup.app/v2/macs/{mac_loc}", verify=False)    # Make a GET request to the API URL with SSL verification disabled
-        if response.status_code == 200: # Check if the request was successful
-            data = response.json()  # Convert the response content to JSON format
-    erase_line()
+def response_vendor(self, mac_loc):   
+    #############for _ in tqdm(range(10), desc = "Запрос информации о вендоре", unit="%"):
+    response = requests.get(f"https://api.maclookup.app/v2/macs/{mac_loc}", verify=False)    # Make a GET request to the API URL with SSL verification disabled
+    if response.status_code == 200: # Check if the request was successful
+        data = response.json()  # Convert the response content to JSON format
+    ##erase_line()
     properties = ["company", "country", "updated"] # Display specific properties in a formatted list
     for prop in properties:
-        print(f"        {BLUE}{prop}{RESET}        {GREEN}{data.get(prop, 'N/A')}{RESET}")
+        self.set_label_text(f"        {BLUE}{prop}{RESET}        {GREEN}{data.get(prop, 'N/A')}{RESET}")
     else:
         return False
     
                 
-def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc, mac_loc,count_loc,ip_loc):
-    channel, password_loc = open_channel(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc)
+def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc, mac_loc,count_loc,ip_loc, self):
+    channel, password_loc = open_channel(self, core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc)
     ccname = ''  
     output = ''
     #ip_address = None
@@ -351,87 +372,92 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
     lag = None
     lag_ports = None
     if ip_loc is not None:
-        for _ in tqdm(range(10), desc=f"Поиск MAC по IP", unit="%"):
-            if ping_host(ip_loc,'1'):
-                output = run_ssh_command(channel, f"show arp | inc {ip_loc}")
-                mac_loc = find_mac_by_ip(output, ip_loc)
-        erase_line()
+        #############for _ in tqdm(range(10), desc=f"Поиск MAC по IP", unit="%"):
+        self.worker_search.start_animation()
+        if ping_host(ip_loc,'1'):
+            output = run_ssh_command(channel, f"show arp | inc {ip_loc}")
+            mac_loc = find_mac_by_ip(output, ip_loc)
+        ###
+        self.worker_search.stop_animation()
+        #erase_line()
 
-    for _ in tqdm(range(10), desc=f"Поиск MAC на {hostname_loc}", unit="%"):
-        output = run_ssh_command(channel, f"show mac add | inc {mac_loc}")
-        ccname = find_cctname(output)
-        port_loc, vlan = find_mac_address(output, mac_loc)
-    erase_line()
+    #############for _ in tqdm(range(10), desc=f"Поиск MAC на {hostname_loc}", unit="%"):
+    output = run_ssh_command(channel, f"show mac add | inc {mac_loc}")
+    ccname = find_cctname(output)
+    port_loc, vlan = find_mac_address(output, mac_loc)
+    ###
+    #erase_line()
     str_lag_ports = ''
     if port_loc is not None:
         if count_loc == 0:
-            for _ in tqdm(range(10), desc=f"Запрос IP", unit="%"):
-                output = run_ssh_command(channel, f"show arp | inc {mac_loc}")
-                ip_address = find_ip_address(output, port_loc)
-            erase_line()
-            output_info(ip_address,mac_loc)
-            print(f"MAC-адрес {GREENL}{mac_loc}{RESET} обнаружен:")
+            #############for _ in tqdm(range(10), desc=f"Запрос IP", unit="%"):
+            output = run_ssh_command(channel, f"show arp | inc {mac_loc}")
+            ip_address = find_ip_address(output, port_loc)
+            ###
+            #erase_line()
+            output_info(self, ip_address,mac_loc)
+            self.set_label_text(f"MAC-адрес {GREENL}{mac_loc}{RESET} обнаружен:")
             if port_loc == 'self':
-                print(f"                     и это коммутатор {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
+                self.set_label_text(f"                     и это коммутатор {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
             else:
                 lag = find_lag(port_loc)
                 if lag is not None:
                     lag_ports = find_lag_ports(lag,channel)
                     if debug:
-                        print(f"Порты в LAG    {lag_ports}")
+                        self.set_label_text(f"Порты в LAG    {lag_ports}")
                     if lag_ports is not None:
                         str_lag_ports = ",".join(lag_ports)
-                    print(f"                     в группе портов {YELLOW}{lag}{RESET} на портах {YELLOWL}{str_lag_ports}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
+                    self.set_label_text(f"                     в группе портов {YELLOW}{lag}{RESET} на портах {YELLOWL}{str_lag_ports}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
                 else:  
-                    print(f"                     на порту {YELLOWL}{port}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
+                    self.set_label_text(f"                     на порту {YELLOWL}{port}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
         else:
             if port_loc == 'self':
-                print(f"                     это коммутатор {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET}",end = ' ')
+                self.set_label_text(f"                     это коммутатор {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET}")
             else:
-                print(f"                     на порту {YELLOWL}{port_loc}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET} в {YELLOW}{vlan}{RESET} VLAN",end = ' ')
+                self.set_label_text(f"                     на порту {YELLOWL}{port_loc}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET} в {YELLOW}{vlan}{RESET} VLAN")
         output=''
         if lag_ports is not None:
             for lag_port in lag_ports:
-                #for _ in tqdm(range(10), desc=f"Поиск следующего коммутатора", unit="%"):
+                ##############for _ in tqdm(range(10), desc=f"Поиск следующего коммутатора", unit="%"):
                 output = run_ssh_command(channel, f"show lldp neighbors | inc {lag_port}")
                 next_hostname = find_next_hostname(output,lag_port)
-                #erase_line()
+                ##erase_line()
                 if next_hostname is not None:
                     break
         else:
-            #for _ in tqdm(range(10), desc=f"Поиск следующего коммутатора", unit="%"):
+            ##############for _ in tqdm(range(10), desc=f"Поиск следующего коммутатора", unit="%"):
             output = run_ssh_command(channel, f"show lldp neighbors | inc {port_loc}")
             next_hostname = find_next_hostname(output,port_loc)
-            #erase_line()
+            ##erase_line()
     else:
-        print(f"MAC-адрес {GREENL}{mac_loc}{RESET} не обнаружен в сети")
+        self.set_label_text(f"MAC-адрес {GREENL}{mac_loc}{RESET} не обнаружен в сети")
             
    
     if next_hostname is not None and next_hostname!=hostname_loc:
         count_loc+=1
         if ping_host(next_hostname,'1'):
             if debug:
-                print(f"Узел {PURPLE}{next_hostname}{RESET} доступен")
+                self.set_label_text(f"Узел {PURPLE}{next_hostname}{RESET} доступен")
             channel.close()
-            channel, password_loc = open_channel(core_loc, hostname_loc, ssh_port_loc, username_loc, password_loc)
-            execute_script(core_loc,next_hostname, ssh_port_loc, username_loc, password_loc, mac_loc, count_loc, None)
+            channel, password_loc = open_channel(self, core_loc, hostname_loc, ssh_port_loc, username_loc, password_loc)
+            execute_script(core_loc,next_hostname, ssh_port_loc, username_loc, password_loc, mac_loc, count_loc, None, self)
         else:
-            print("", end='\n')
-            print(f"                     где-то за {PURPLE}{next_hostname}{RESET}, {RED}но этот узел недоступен для анализа{RESET}")            
+            self.set_label_text("")
+            self.set_label_text(f"                     где-то за {PURPLE}{next_hostname}{RESET}, {RED}но этот узел недоступен для анализа{RESET}")            
             channel.close()
-            print("Поиск завершен")
+            #self.set_label_text("Поиск завершен")
     else:
-        channel, password_loc = open_channel(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc)
+        channel, password_loc = open_channel(self, core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc)
         if find_unmanaged_switch(port_loc,channel):
-            print(f"{RED}где-то за неуправляемым свичем{RESET}" )
+            self.set_label_text(f"{RED}где-то за неуправляемым свичем{RESET}" )
         else:
-            print("", end='\n')      
+            self.set_label_text("")      
         channel.close()
-        print("Поиск завершен")
+        #self.set_label_text("Поиск завершен")
 
 # Check for passed command arguments when calling the script
 #if len(sys.argv) < 2:
-#    print('Использование: python findMac.py "MAC"')
+#     self.set_label_text('Использование: python findMac.py "MAC"')
 #else:
 #    mac = sys.argv[1]
 #password = enter_pass()
@@ -442,7 +468,7 @@ if __name__ == '__main__':
     sys.exit(app.exec_())
 
 """ while True:    
-    print(f"{GREY}--- Для выхода введите quit или q ---{RESET}")
+     self.set_label_text(f"{GREY}--- Для выхода введите quit или q ---{RESET}")
     in_string = input(f"{WHITE_ON_BLACK}Введите IP или MAC-адрес искомого устройства: {RESET}")
     input_parametr = in_string.lower()
     if input_parametr == "quit" or input_parametr == "q":
@@ -460,6 +486,6 @@ if __name__ == '__main__':
                 ip_by_hostname = socket.gethostbyname(input_parametr)[0] # Get the hostname corresponding to the IP address
                 execute_script(hostname, hostname, ssh_port, username, password, None, count, ip_by_hostname)                
             else:
-              print(f"{WHITE_ON_BLACK}Некоректный MAC или IP -адрес{RESET}")
-              #print(f"{WHITE_ON_BLACK}Ожидается ввод типа AA:BB:CC:DD:EE:FF {RESET}")
+               self.set_label_text(f"{WHITE_ON_BLACK}Некоректный MAC или IP -адрес{RESET}")
+              # self.set_label_text(f"{WHITE_ON_BLACK}Ожидается ввод типа AA:BB:CC:DD:EE:FF {RESET}")
  """
