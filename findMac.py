@@ -321,7 +321,7 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
                         str_lag_ports = ",".join(lag_ports)
                     print(f"                     в группе портов {YELLOW}{lag}{RESET} на портах {YELLOWL}{str_lag_ports}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
                 else:  
-                    print(f"                     на порту {YELLOWL}{port}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
+                    print(f"                     на порту {YELLOWL}{port_loc}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
         else:
             if port_loc == 'self':
                 print(f"                     это коммутатор {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET}",end = ' ')
