@@ -1,16 +1,33 @@
-import sys
-from PyQt5.QtWidgets import QWidget, QApplication, QDialog, QLabel, QVBoxLayout
+import sys, subprocess
+from PyQt5.QtWidgets import QWidget, QApplication, QLabel, QVBoxLayout
 from PyQt5.QtGui import QMovie
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
+
+class PingThread(QThread):
+    finished = pyqtSignal()
+
+    def __init__(self, host, packet):
+        super().__init__()
+        self.host = host
+        self.packet = packet
+
+    def run(self):
+        process = subprocess.Popen(['ping', '-c', self.packet, self.host], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        output, error = process.communicate()
+        if debug:
+            print(output)
+        self.finished.emit()
 
 class LoadingAnimation(QWidget):
     def __init__(self):
         super().__init__()
+        self.setGeometry(100, 100, 400, 300)
         self.setWindowTitle('Анимация загрузки')
         layout = QVBoxLayout()
 
         self.loading_label = QLabel(self)
-        self.movie = QMovie('loading_animation.gif')  # Подставьте путь к вашему анимационному GIF
+        #self.loading_label.move(250, 10)
+        self.movie = QMovie('Spinning octopus.gif')  # Подставьте путь к вашему анимационному GIF
 
         self.loading_label.setMovie(self.movie)
         layout.addWidget(self.loading_label)
@@ -25,7 +42,9 @@ if __name__ == '__main__':
     window = LoadingAnimation()
     window.show()
 
-    # Ваш процесс или задача
-    # ...
+    ping_thread = PingThread('192.168.10.110', '100')
+    ping_thread.finished.connect(window.movie.stop)
     
+    ping_thread.start()
+
     sys.exit(app.exec_())
