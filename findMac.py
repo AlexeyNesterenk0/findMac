@@ -26,7 +26,18 @@ from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QMessageBox, QLa
 from PyQt5.QtGui import QMovie
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
+
 warnings.filterwarnings("ignore") # Filter out all warnings
+# Проверка наличия файла
+if not os.path.exists('config.ini'):
+    # Создание и отображение диалогового окна с сообщением об ошибке
+    error_message = "Ошибка: Файл отсутствует."
+    msg = QMessageBox()
+    msg.setIcon(QMessageBox.Critical)
+    msg.setText(error_message)
+    msg.setWindowTitle("Ошибка")
+    msg.exec_()
+    sys.exit()  # Закрыть приложение
 config = configparser.ConfigParser()  # Creating a configuration object
 config.read('config.ini')   # Reading the configuration file
 
