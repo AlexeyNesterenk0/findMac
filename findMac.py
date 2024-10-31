@@ -26,7 +26,18 @@ from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QMessageBox, QLa
 from PyQt5.QtGui import QMovie
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
+
 warnings.filterwarnings("ignore") # Filter out all warnings
+# Проверка наличия файла
+if not os.path.exists('config.ini'):
+    # Создание и отображение диалогового окна с сообщением об ошибке
+    error_message = "Ошибка: Файл отсутствует."
+    msg = QMessageBox()
+    msg.setIcon(QMessageBox.Critical)
+    msg.setText(error_message)
+    msg.setWindowTitle("Ошибка")
+    msg.exec_()
+    sys.exit()  # Закрыть приложение
 config = configparser.ConfigParser()  # Creating a configuration object
 config.read('config.ini')   # Reading the configuration file
 
@@ -196,16 +207,16 @@ def enter_pass():
     clear_screen()  # Call the function to clear the screen
     return result
 
-""" def reconnect(self, hostname_loc):
-     window.append_text(f"Узел {hostname_loc} недоступен")
-    in_ansver = input(f"{WHITE_ON_BLACK}Повторить попытку подключения?: Y/N (N) ")
+def reconnect(hostname_loc):
+    window.append_text(f"Узел <b>{hostname_loc}</b> недоступен")
+    in_ansver = input(f"Повторить попытку подключения?: Y/N (N) ")
     if in_ansver.lower() == "y" or in_ansver.lower() == "yes":
         if ping_host(hostname_loc,'4'):
             return True
         else:
-            reconnect(self, hostname_loc)
+            reconnect(hostname_loc)
     else:
-        sys.exit() """
+        sys.exit() 
     
 def ping_host(host,packet):
     process = subprocess.Popen(['ping', '-c', packet, host], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -217,13 +228,12 @@ def ping_host(host,packet):
 def establish_ssh_connection(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc): # Function to establish an SSH connection
     client = paramiko.SSHClient() # Create an SSH client object
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    #if hostname_loc == core_loc and not ping_host(hostname_loc,'1'): # Check if the hostname is the core and if it is not reachable
-        #reconnect(self, hostname_loc)       # Reconnect to the host if it is the core and not reachable  
-    #try: # Try to establish an SSH connection using the specified parameters
-    client.connect(hostname_loc, ssh_port_loc, username_loc, password_loc)
-    #except Exception as e:   
-    #if debug:
-    window.display_info("Соединение установлено")
+    if hostname_loc == core_loc and not ping_host(hostname_loc,'1'): # Check if the hostname is the core and if it is not reachable
+        reconnect(hostname_loc)       # Reconnect to the host if it is the core and not reachable  
+    try: # Try to establish an SSH connection using the specified parameters
+        client.connect(hostname_loc, ssh_port_loc, username_loc, password_loc)
+    except Exception as e:   
+        window.display_info("Соединение установлено")
     return client, password_loc # Return the SSH client object and password
 
 def open_channel(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc):
