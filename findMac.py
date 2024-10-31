@@ -24,6 +24,10 @@ import requests
 import warnings
 
 warnings.filterwarnings("ignore") # Filter out all warnings
+# Проверка наличия файла
+if not os.path.exists('config.ini'):
+    print(f"Ошибка: Файл 'config.ini'' отсутствует.")
+    sys.exit()  # Закрыть приложение
 config = configparser.ConfigParser()  # Creating a configuration object
 config.read('config.ini')   # Reading the configuration file
 
