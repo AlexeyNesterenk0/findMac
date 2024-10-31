@@ -79,7 +79,7 @@ class App(QWidget):
         self.worker_thread_search.start()
 
         self.info_line = QLabel('', self)
-        self.info_line.setText('Дополнительная информация')
+        self.info_line.setText('')
         self.info_line.setMaximumHeight(20)
         main_layout.addWidget(self.info_line)
 
@@ -131,11 +131,14 @@ class App(QWidget):
         self.label.setText(text)
 
     def on_button_click(self):
+        self.worker_search.start_animation()
         self.label.clear()
+        self.display_info("Поиск начат")
         input_text = self.line_edit.text()
         # Сделать кнопку неактивной
         self.search_btn.setEnabled(False)
         input_parametr(input_text)  
+        self.worker_search.start_animation()
         # Сделать кнопку активной
         self.search_btn.setEnabled(True)
 
@@ -393,13 +396,12 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
     lag_ports = None
     if ip_loc is not None:
         window.display_info("Поиск MAC по IP")
-        window.worker_search.start_animation()
+        #windows.worker_search.start_animation()
         if ping_host(ip_loc,'1'):
             output = run_ssh_command(channel, f"show arp | inc {ip_loc}")
             mac_loc = find_mac_by_ip(output, ip_loc)
-        ###
-        window.worker_search.stop_animation()
-        #erase_line()
+       # windows.worker_search.stop_animation()
+    
 
     window.display_info(f"Поиск MAC на {hostname_loc}")
     output = run_ssh_command(channel, f"show mac add | inc {mac_loc}")
@@ -429,7 +431,7 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
                         str_lag_ports = ",".join(lag_ports)
                     window.append_text(f"                     в группе портов <b>{lag}</b> на портах <b>{str_lag_ports}</b> коммутатора <b>{hostname_loc}</b>  в <b>{location}</b>")
                 else:  
-                    window.append_text(f"                     на порту <b>{port}</b> коммутатора <b>{hostname_loc}  в <b>{location}</b>")
+                    window.append_text(f"                     на порту <b>{port_loc}</b> коммутатора <b>{hostname_loc}</b>  в <b>{location}</b>")
         else:
             if port_loc == 'self':
                 window.append_text(f"                     это коммутатор <b>{hostname_loc}</b>  в КШ <b>{ccname}</b>")
