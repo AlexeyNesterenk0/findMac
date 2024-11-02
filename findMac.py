@@ -53,14 +53,9 @@ debug = int(config['Connection']['debug'])  # Convert debug to an integer
 count = 0
 #debug = 1
 
-def find_lag(port_loc):
-    output_loc = re.search(r"Po\d+|Po[\w-]+\d+", port_loc, re.I)
-    if output_loc is not None:
-        result = output_loc.group()
-    if debug:
-        print(f'LAG    {result}')
-    return result if result else None
-
+#sys.path.append('findMAC/func')
+sys.path.append('func')
+from find_lag_function import find_lag
 
 def check_mac_address(mac_address):
     mac_pattern = re.compile(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$')  # Regular expression for checking the MAC address
