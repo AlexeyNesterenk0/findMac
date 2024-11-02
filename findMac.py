@@ -18,13 +18,10 @@ import re
 import os
 import sys
 import subprocess
-import configparserq
+import configparser
 import socket
 import requests
 import warnings
-
-sys.path.append('func')
-from find_lag_function import find_lag
 
 warnings.filterwarnings("ignore") # Filter out all warnings
 # Проверка наличия файла
@@ -54,6 +51,16 @@ username = config['Connection']['username']
 password = config['Connection']['password']
 debug = int(config['Connection']['debug'])  # Convert debug to an integer
 count = 0
+#debug = 1
+
+def find_lag(port_loc):
+    output_loc = re.search(r"Po\d+|Po[\w-]+\d+", port_loc, re.I)
+    if output_loc is not None:
+        result = output_loc.group()
+    if debug:
+        print(f'LAG    {result}')
+    return result if result else None
+
 
 def check_mac_address(mac_address):
     mac_pattern = re.compile(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$')  # Regular expression for checking the MAC address
@@ -143,6 +150,8 @@ def run_ssh_command(channel, command):
     while True:
         if channel.recv_ready():
             output += channel.recv(1024).decode('utf-8')
+            if output.endswith('--More-- '):
+                channel.send('\n')
             if output.endswith('#') or output.endswith('>'):
                 break
     if debug:
@@ -206,7 +215,11 @@ def find_ip_address(output_loc, port_loc, vendor):
     return ip_loc if ip_loc else None
 
 def find_cctname(output_loc):
+    if debug:
+         print(f"Поиск информации о размещении")
     result = re.search(r"\w-\d-\w", output_loc)
+    if debug:
+         print(f"Поиск информации о размещении завершен")
     return result.group() if result else None
 
 def find_next_hostname(output_loc, port_loc):
@@ -225,19 +238,27 @@ def find_next_hostname(output_loc, port_loc):
 
 
 def find_lag_ports(lag_loc,channel_loc, vendor):
+    if debug:
+         print(f"Поиск портов в LAG  {lag_loc}")
     number_lag = re.search(r"\d+", lag_loc)
     str_number_lag = number_lag.group()
     result = None
+    if debug:
+        print(f"{vendor} запрос информации о портах в {lag_loc} ")
     if vendor == 'Vector':
         output_loc = run_ssh_command(channel_loc, f"show interface port-channel {str_number_lag}")
     else:
-        output_loc = run_ssh_command(channel_loc, f"show interface channel-group {str_number_lag}")    
+        output_loc = run_ssh_command(channel_loc, f"show interface channel-group {str_number_lag}")  
+    if debug:
+         print(output_loc)
+    if debug:
+        print(f"{vendor} запрос информации о портах в {lag_loc} завершен")
     str_lag_ports_loc = ''
     lines = output_loc.split('\n')
     for line in lines:
         if vendor == 'Vector':
             if 'Ethernet' in line:
-                result = line.split(' ').strip()
+                result = result = [item for item in line.split(' ') if item.strip() != '' and item.strip() != 'n' and item.strip() != 'r']
                 break
         else:
             if lag_loc in line and 'Act':
@@ -248,18 +269,22 @@ def find_lag_ports(lag_loc,channel_loc, vendor):
                 if str_lag_ports_loc:
                     result = str_lag_ports_loc.split(",")
                 break
-        if debug:
-            print(f"array Порты в LAG    {result}")
+    if debug:
+        print(f"array Порты в LAG    {result}")
+        print(f"Поиск портов в LAG  {lag_loc} завершен")
     return result if result else None
 
 def find_unmanaged_switch(port_loc,channel_loc, vendor):
+    if debug:
+        print(f"Поиск информации о вендоре")
     if vendor == 'Vector':
        output_loc = run_ssh_command(channel_loc, f"show mac-address-table int {port_loc}")
     else:
         output_loc = run_ssh_command(channel_loc, f"show mac add int {port_loc}")
     if debug:
         print(output_loc)
-   
+        print(f"Поиск информации о вендоре завершен")
+
     mac_count = 0
     mac_loc = None
     mac_loc = re.findall(r'([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})',output_loc)
@@ -331,18 +356,26 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
         vendor = find_sw_vendor(output)
     erase_line()
     port_loc = None
-    for _ in tqdm(range(10), desc=f"Поиск MAC на {hostname_loc}", unit="%"):
-        if vendor == "Vector":            
-            output = run_ssh_command(channel, f"show mac-address-table | inc {mac_vector}")
-            port_loc, vlan = find_mac_address(output, mac_vector)
-        else:
-            output = run_ssh_command(channel, f"show mac add | inc {mac_loc}")
-            port_loc, vlan = find_mac_address(output, mac_loc)
-        ccname = find_cctname(output)
+    #for _ in tqdm(range(10), desc=f"Поиск MAC на {hostname_loc}", unit="%"):
+    if vendor == "Vector":            
+        output = run_ssh_command(channel, f"show mac-address-table | inc {mac_vector}")
+        port_loc, vlan = find_mac_address(output, mac_vector)
+    else:
+        output = run_ssh_command(channel, f"show mac add | inc {mac_loc}")
+        port_loc, vlan = find_mac_address(output, mac_loc)
+
+    ccname = find_cctname(output)
         
     erase_line()
     str_lag_ports = ''
-    if port_loc is not None:
+    if port_loc is not None:  
+        lag = None      
+        lag_ports = None
+        lag = find_lag(port_loc)
+        if lag is not None:
+            lag_ports = find_lag_ports(lag,channel, vendor)
+            if debug:
+                print(f"Порты в LAG    {lag_ports}")
         if count_loc == 0:
             for _ in tqdm(range(10), desc=f"Запрос IP", unit="%"):
                 if vendor == 'Vector':
@@ -356,13 +389,8 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
             if port_loc == 'self':
                 print(f"                     и это коммутатор {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
             else:
-                lag = find_lag(port_loc)
-                if lag is not None:
-                    lag_ports = find_lag_ports(lag,channel, vendor)
-                    if debug:
-                        print(f"Порты в LAG    {lag_ports}")
-                    if lag_ports is not None:
-                        str_lag_ports = ",".join(lag_ports)
+                if lag_ports is not None:
+                    str_lag_ports = ",".join(lag_ports)
                     print(f"                     в группе портов {YELLOW}{lag}{RESET} на портах {YELLOWL}{str_lag_ports}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
                 else:  
                     print(f"                     на порту {YELLOWL}{port_loc}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
@@ -370,7 +398,11 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
             if port_loc == 'self':
                 print(f"                     это коммутатор {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET}",end = ' ')
             else:
-                print(f"                     на порту {YELLOWL}{port_loc}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET} в {YELLOW}{vlan}{RESET} VLAN",end = ' ')
+                if lag_ports is not None:
+                    str_lag_ports = ",".join(lag_ports)
+                    print(f"                     в группе портов {YELLOW}{lag}{RESET} на портах {YELLOWL}{str_lag_ports}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{ccname}{RESET} в {YELLOW}{vlan}{RESET} VLAN",end = ' ')
+                else:  
+                    print(f"                     на порту {YELLOWL}{port_loc}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET} в {YELLOW}{vlan}{RESET} VLAN",end = ' ')
         output=''
         if lag_ports is not None:
             for lag_port in lag_ports:
