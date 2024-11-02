@@ -18,14 +18,13 @@ import re
 import os
 import sys
 import subprocess
-import configparser
+import configparserq
 import socket
 import requests
 import warnings
 
-sys.path.append("findMAC/func")
+sys.path.append('func')
 from find_lag_function import find_lag
-
 
 warnings.filterwarnings("ignore") # Filter out all warnings
 # Проверка наличия файла
