@@ -23,6 +23,10 @@ import socket
 import requests
 import warnings
 
+sys.path.append("findMAC/func")
+from find_lag_function import find_lag
+
+
 warnings.filterwarnings("ignore") # Filter out all warnings
 # Проверка наличия файла
 if not os.path.exists('config.ini'):
@@ -219,15 +223,7 @@ def find_next_hostname(output_loc, port_loc):
                     break
     return result.group() if result else None
 
-def find_lag(port_loc):
-    output_loc = re.search(r"Po\d+|Po[\w-]+\d+", port_loc, re.I)
-    if output_loc is not None:
-        result = output_loc.group()
-        if debug:
-            print(f"LAG    {result}")
-        return result if result else None
-    else:
-        return None
+
 
 def find_lag_ports(lag_loc,channel_loc, vendor):
     number_lag = re.search(r"\d+", lag_loc)
