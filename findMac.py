@@ -53,22 +53,10 @@ debug = int(config['Connection']['debug'])  # Convert debug to an integer
 count = 0
 #debug = 1
 
-def find_lag(port_loc):
-    output_loc = re.search(r"Po\d+|Po[\w-]+\d+", port_loc, re.I)
-    if output_loc is not None:
-        result = output_loc.group()
-    if debug:
-        print(f'LAG    {result}')
-    return result if result else None
-
-
-def check_mac_address(mac_address):
-    mac_pattern = re.compile(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$')  # Regular expression for checking the MAC address
-
-    if mac_pattern.match(mac_address):
-        return True
-    else:
-        return False
+#sys.path.append('findMAC/func')
+sys.path.append('func')
+from find_lag_function import find_lag
+from check_mac_address_function import check_mac_address
 
 def check_ip_address(ip_address):
     ip_pattern = re.compile(r'^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$')  # Regular expression for checking the IP address
@@ -90,14 +78,14 @@ def reconnect(hostname_loc):
     print(f"Узел {hostname_loc} недоступен")
     in_ansver = input(f"{WHITE_ON_BLACK}Повторить попытку подключения?: Y/N (N) {RESET}")
     if in_ansver.lower() == "y" or in_ansver.lower() == "yes":
-        if ping_host(hostname_loc,'4'):
+        if ping_host(hostname_loc,'4',debug):
             return True
         else:
             reconnect(hostname_loc)
     else:
         sys.exit()
     
-def ping_host(host,packet):
+def ping_host(host,packet, debug):
     process = subprocess.Popen(['ping', '-c', packet, host], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, error = process.communicate()
     if debug:
@@ -114,7 +102,7 @@ def find_sw_vendor(output_loc):
 def establish_ssh_connection(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc): # Function to establish an SSH connection
     client = paramiko.SSHClient() # Create an SSH client object
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    if hostname_loc == core_loc and not ping_host(hostname_loc,'1'): # Check if the hostname is the core and if it is not reachable
+    if hostname_loc == core_loc and not ping_host(hostname_loc,'1',debug): # Check if the hostname is the core and if it is not reachable
         reconnect(hostname_loc)       # Reconnect to the host if it is the core and not reachable  
     try: # Try to establish an SSH connection using the specified parameters
         client.connect(hostname_loc, ssh_port_loc, username_loc, password_loc)
@@ -124,7 +112,7 @@ def establish_ssh_connection(core_loc,hostname_loc, ssh_port_loc, username_loc, 
         if in_ansver.lower() == "y" or in_ansver.lower() == "yes":
             client.close()
             password_loc = enter_pass()
-            ping_host(hostname_loc,'4')
+            ping_host(hostname_loc,'4',debug)
             establish_ssh_connection(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc) # Recursive call to retry connection
         else:
             sys.exit() # Exit the program
@@ -344,7 +332,7 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
     lag_ports = None
     if ip_loc is not None:
         for _ in tqdm(range(10), desc=f"Поиск MAC по IP", unit="%"):
-            if ping_host(ip_loc,'1'):
+            if ping_host(ip_loc,'1', debug):
                 output = run_ssh_command(channel, f"show arp | inc {ip_loc}")
                 mac_loc = find_mac_by_ip(output, ip_loc)
         erase_line()
@@ -371,7 +359,7 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
     if port_loc is not None:  
         lag = None      
         lag_ports = None
-        lag = find_lag(port_loc)
+        lag = find_lag(port_loc, debug)
         if lag is not None:
             lag_ports = find_lag_ports(lag,channel, vendor)
             if debug:
@@ -433,7 +421,7 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
    
     if next_hostname is not None and next_hostname!=hostname_loc:
         count_loc+=1
-        if ping_host(next_hostname,'1'):
+        if ping_host(next_hostname,'1', debug):
             if debug:
                 print(f"Узел {PURPLE}{next_hostname}{RESET} доступен")
             channel.close()
@@ -473,7 +461,7 @@ while True:
             clear_screen()
             execute_script(hostname, hostname, ssh_port, username, password, None, count, input_parametr)
         else:
-            if ping_host(input_parametr,'1'):
+            if ping_host(input_parametr,'1', debug):
                 clear_screen()
                 ip_by_hostname = socket.gethostbyname(input_parametr)[0] # Get the hostname corresponding to the IP address
                 execute_script(hostname, hostname, ssh_port, username, password, None, count, ip_by_hostname)                
