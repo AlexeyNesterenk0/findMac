@@ -13,6 +13,7 @@
 #===========================================================
 from tqdm import tqdm
 import paramiko
+from paramiko.ssh_exception import SSHException
 import getpass
 import re
 import os
@@ -93,9 +94,9 @@ def ping_host(host,packet, debug):
     return True if not error else False
 
 def find_sw_vendor(output_loc):
-    sw_vendor_loc = re.search(r"Vector", output_loc)
+    sw_vendor_loc = re.search(r"Vector | QSW-", output_loc) #Упрощено для расботы с единственным  коммутатором QTECH
     if sw_vendor_loc is not None:
-        return 'Vector' 
+        return 'Vector'
     else:
         return 'Eltex'
 
@@ -103,34 +104,43 @@ def establish_ssh_connection(core_loc,hostname_loc, ssh_port_loc, username_loc, 
     client = paramiko.SSHClient() # Create an SSH client object
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     if hostname_loc == core_loc and not ping_host(hostname_loc,'1',debug): # Check if the hostname is the core and if it is not reachable
-        reconnect(hostname_loc)       # Reconnect to the host if it is the core and not reachable  
+        reconnect(core_loc)       # Reconnect to the host if it is the core and not reachable  
     try: # Try to establish an SSH connection using the specified parameters
         client.connect(hostname_loc, ssh_port_loc, username_loc, password_loc)
-    except Exception as e:
-        print(f"Авторизация не пройдена")
-        in_ansver = input(f"{WHITE_ON_BLACK}Повторить попытку авторизации?: Y/N (N) {RESET}") # Prompt user to retry authorization
-        if in_ansver.lower() == "y" or in_ansver.lower() == "yes":
-            client.close()
-            password_loc = enter_pass()
-            ping_host(hostname_loc,'4',debug)
-            establish_ssh_connection(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc) # Recursive call to retry connection
+        if debug:
+            print("Соединение установлено")
+    except SSHException as e:      
+        #client.close()
+        if hostname_loc == core_loc:
+            print(f"Авторизация не пройдена")
+            in_ansver = input(f"{WHITE_ON_BLACK}Повторить попытку авторизации?: Y/N (N) {RESET}") # Prompt user to retry authorization
+            if in_ansver.lower() == "y" or in_ansver.lower() == "yes":
+                password_loc = enter_pass()
+                ping_host(hostname_loc,'4',debug)
+                establish_ssh_connection(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc) # Recursive call to retry connection
+            else:
+                sys.exit() # Exit the program
         else:
-            sys.exit() # Exit the program
-        
-    if debug:
-        print("Соединение установлено")
+            if debug:
+                print(f"Авторизация не пройдена")
+                print("Соединение закрыто")
+            client = None
+            password_loc = None       
     return client, password_loc # Return the SSH client object and password
 
 def open_channel(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc):
     client, password_loc = establish_ssh_connection(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc)
-    channel = client.invoke_shell()
-    output = ''
-    while True:
-        if channel.recv_ready():
-            output += channel.recv(1024).decode('utf-8')
-            if output.endswith('#') or output.endswith('>'):
-                break
-    return channel, password_loc
+    if client is not None:
+        channel = client.invoke_shell()
+        output = ''
+        while True:
+            if channel.recv_ready():
+                output += channel.recv(1024).decode('utf-8')
+                if output.endswith('#') or output.endswith('>'):
+                    break
+        return channel, password_loc
+    else:
+        return None, None
 
 def run_ssh_command(channel, command):
     channel.send(command + '\n')
@@ -138,9 +148,9 @@ def run_ssh_command(channel, command):
     while True:
         if channel.recv_ready():
             output += channel.recv(1024).decode('utf-8')
-            if output.endswith('--More-- '):
+            if output.endswith('--More-- '):    # Check if the output contains '--More--' which indicates more scrolling is needed
                 channel.send('\n')
-            if output.endswith('#') or output.endswith('>'):
+            if output.endswith('#') or output.endswith('>'):    # Check if the output ends with prompt symbols '#' or '>'
                 break
     if debug:
         print(output)
@@ -177,6 +187,7 @@ def find_mac_address(output_loc, mac_loc):
                 parts = line.split()
                 port_loc = parts[2]
                 vlan_loc = parts[0]
+                break
             if 'DYN' in line and mac_loc in line:
                 parts = line.split()
                 port_loc = parts[4]
@@ -323,123 +334,124 @@ def response_vendor(mac_loc):
                 
 def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc, mac_loc,count_loc,ip_loc):
     channel, password_loc = open_channel(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc)
-    ccname = ''  
-    output = ''
-    next_hostname = None
-    
-    vlan = None
-    lag = None
-    lag_ports = None
-    if ip_loc is not None:
-        for _ in tqdm(range(10), desc=f"Поиск MAC по IP", unit="%"):
-            if ping_host(ip_loc,'1', debug):
-                output = run_ssh_command(channel, f"show arp | inc {ip_loc}")
-                mac_loc = find_mac_by_ip(output, ip_loc)
-        erase_line()
-
-    mac_vector = mac_loc.replace(':', '-')
-
-    for _ in tqdm(range(10), desc=f"Определение вендора {hostname_loc}", unit="%"):
-        output = run_ssh_command(channel, f"show ver")
-        vendor = find_sw_vendor(output)
-    erase_line()
-    port_loc = None
-    #for _ in tqdm(range(10), desc=f"Поиск MAC на {hostname_loc}", unit="%"):
-    if vendor == "Vector":            
-        output = run_ssh_command(channel, f"show mac-address-table | inc {mac_vector}")
-        port_loc, vlan = find_mac_address(output, mac_vector)
-    else:
-        output = run_ssh_command(channel, f"show mac add | inc {mac_loc}")
-        port_loc, vlan = find_mac_address(output, mac_loc)
-
-    ccname = find_cctname(output)
-        
-    erase_line()
-    str_lag_ports = ''
-    if port_loc is not None:  
-        lag = None      
+    if channel is not None:
+        ccname = ''  
+        output = ''
+        next_hostname = None
+        vlan = None
+        lag = None
         lag_ports = None
-        lag = find_lag(port_loc, debug)
-        if lag is not None:
-            lag_ports = find_lag_ports(lag,channel, vendor)
-            if debug:
-                print(f"Порты в LAG    {lag_ports}")
-        if count_loc == 0:
-            for _ in tqdm(range(10), desc=f"Запрос IP", unit="%"):
-                if vendor == 'Vector':
-                    output = run_ssh_command(channel, f"show arp | inc {mac_vector}")
-                else:   
-                    output = run_ssh_command(channel, f"show arp | inc {mac_loc}")
-                ip_address = find_ip_address(output, port_loc, vendor)
+        if ip_loc is not None:
+            for _ in tqdm(range(10), desc=f"Поиск MAC по IP", unit="%"):
+                if ping_host(ip_loc,'1', debug):
+                    output = run_ssh_command(channel, f"show arp | inc {ip_loc}")
+                    mac_loc = find_mac_by_ip(output, ip_loc)
             erase_line()
-            output_info(ip_address,mac_loc)
-            print(f"MAC-адрес {GREENL}{mac_loc}{RESET} обнаружен:")
-            if port_loc == 'self':
-                print(f"                     и это коммутатор {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
+        mac_vector = mac_loc.replace(':', '-')
+        for _ in tqdm(range(10), desc=f"Определение вендора {hostname_loc}", unit="%"):
+            output = run_ssh_command(channel, f"show ver")
+            vendor = find_sw_vendor(output)
+        erase_line()
+        port_loc = None
+        for _ in tqdm(range(10), desc=f"Поиск MAC на {hostname_loc}", unit="%"):
+            if vendor == "Vector":            
+                output = run_ssh_command(channel, f"show mac-address-table | inc {mac_vector}")
+                port_loc, vlan = find_mac_address(output, mac_vector)
             else:
-                if lag_ports is not None:
-                    str_lag_ports = ",".join(lag_ports)
-                    print(f"                     в группе портов {YELLOW}{lag}{RESET} на портах {YELLOWL}{str_lag_ports}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
-                else:  
-                    print(f"                     на порту {YELLOWL}{port_loc}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
-        else:
-            if port_loc == 'self':
-                print(f"                     это коммутатор {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET}",end = ' ')
-            else:
-                if lag_ports is not None:
-                    str_lag_ports = ",".join(lag_ports)
-                    print(f"                     в группе портов {YELLOW}{lag}{RESET} на портах {YELLOWL}{str_lag_ports}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в  КШ {PURPLE}{ccname}{RESET} в {YELLOW}{vlan}{RESET} VLAN",end = ' ')
-                else:  
-                    print(f"                     на порту {YELLOWL}{port_loc}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET} в {YELLOW}{vlan}{RESET} VLAN",end = ' ')
-        output=''
-        if lag_ports is not None:
-            for lag_port in lag_ports:
-                #for _ in tqdm(range(10), desc=f"Поиск следующего коммутатора", unit="%"):
-                if vendor == 'Vector':
-                    output = run_ssh_command(channel, f"show lldp neighbors brief | inc {lag_port}")
+                output = run_ssh_command(channel, f"show mac add | inc {mac_loc}")
+                port_loc, vlan = find_mac_address(output, mac_loc)
+            ccname = find_cctname(output)
+        erase_line()
+        str_lag_ports = ''
+        if port_loc is not None:  
+            lag = None      
+            lag_ports = None
+            lag = find_lag(port_loc, debug)
+            if lag is not None:
+                lag_ports = find_lag_ports(lag,channel, vendor)
+                if debug:
+                    print(f"Порты в LAG    {lag_ports}")
+            if count_loc == 0:
+                for _ in tqdm(range(10), desc=f"Запрос IP", unit="%"):
+                    if vendor == 'Vector':
+                        output = run_ssh_command(channel, f"show arp | inc {mac_vector}")
+                    else:   
+                        output = run_ssh_command(channel, f"show arp | inc {mac_loc}")
+                    ip_address = find_ip_address(output, port_loc, vendor)
+                erase_line()
+                output_info(ip_address,mac_loc)
+                print(f"MAC-адрес {GREENL}{mac_loc}{RESET} обнаружен:")
+                if port_loc == 'self':
+                    print(f"                     и это коммутатор {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
                 else:
-                    output = run_ssh_command(channel, f"show lldp neighbors | inc {lag_port}")
+                    if lag_ports is not None:
+                        str_lag_ports = ",".join(lag_ports)
+                        print(f"                     в группе портов {YELLOW}{lag}{RESET} на портах {YELLOWL}{str_lag_ports}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
+                    else:  
+                        print(f"                     на порту {YELLOWL}{port_loc}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
+            else:
+                if port_loc == 'self':
+                    print(f"                     это коммутатор {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET}",end = ' ')
+                else:
+                    if lag_ports is not None:
+                        str_lag_ports = ",".join(lag_ports)
+                        print(f"                     в группе портов {YELLOW}{lag}{RESET} на портах {YELLOWL}{str_lag_ports}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в  КШ {PURPLE}{ccname}{RESET} в {YELLOW}{vlan}{RESET} VLAN",end = ' ')
+                    else:  
+                        print(f"                     на порту {YELLOWL}{port_loc}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET} в {YELLOW}{vlan}{RESET} VLAN",end = ' ')
+            output=''
+            if lag_ports is not None:
+                for lag_port in lag_ports:
+                    #for _ in tqdm(range(10), desc=f"Поиск следующего коммутатора", unit="%"):
+                    if vendor == 'Vector':
+                        output = run_ssh_command(channel, f"show lldp neighbors brief | inc {lag_port}")
+                    else:
+                        output = run_ssh_command(channel, f"show lldp neighbors | inc {lag_port}")
+                    if debug:
+                        print(output)
+                    next_hostname = find_next_hostname(output,lag_port)
+                    #erase_line()
+                    if next_hostname is not None:
+                        break
+            else:
+                #for _ in tqdm(range(10), desc=f"Поиск следующего коммутатора", unit="%"):
+                if vendor == "Vector":
+                    output = run_ssh_command(channel, f"show lldp neighbors brief | inc {port_loc}")
+                else:
+                    output = run_ssh_command(channel, f"show lldp neighbors | inc {port_loc}")
                 if debug:
                     print(output)
-                next_hostname = find_next_hostname(output,lag_port)
+                next_hostname = find_next_hostname(output,port_loc)
                 #erase_line()
-                if next_hostname is not None:
-                    break
         else:
-            #for _ in tqdm(range(10), desc=f"Поиск следующего коммутатора", unit="%"):
-            if vendor == "Vector":
-                output = run_ssh_command(channel, f"show lldp neighbors brief | inc {port_loc}")
+            print(f"MAC-адрес {GREENL}{mac_loc}{RESET} не обнаружен в сети")        
+        if next_hostname is not None and next_hostname!=hostname_loc:
+            count_loc+=1
+            if ping_host(next_hostname,'1', debug):
+                if debug:
+                    print(f"Узел {PURPLE}{next_hostname}{RESET} доступен")
+                channel.close()
+                if debug:
+                    print(f"Попытка подключения к  {PURPLE}{next_hostname}{RESET}")
+                channel, password_loc = open_channel(core_loc, next_hostname, ssh_port_loc, username_loc, password_loc)
+                if channel is not None:
+                    execute_script(core_loc,next_hostname, ssh_port_loc, username_loc, password_loc, mac_loc, count_loc, None)
+                else:
+                    print(f"                     где-то за {PURPLE}{next_hostname}{RESET}, {RED}но этот узел недоступен для анализа{RESET}")   
+                    print("Поиск завершен")    
+
             else:
-                output = run_ssh_command(channel, f"show lldp neighbors | inc {port_loc}")
-            if debug:
-                print(output)
-            next_hostname = find_next_hostname(output,port_loc)
-            #erase_line()
-    else:
-        print(f"MAC-адрес {GREENL}{mac_loc}{RESET} не обнаружен в сети")
-            
-   
-    if next_hostname is not None and next_hostname!=hostname_loc:
-        count_loc+=1
-        if ping_host(next_hostname,'1', debug):
-            if debug:
-                print(f"Узел {PURPLE}{next_hostname}{RESET} доступен")
-            channel.close()
-            channel, password_loc = open_channel(core_loc, hostname_loc, ssh_port_loc, username_loc, password_loc)
-            execute_script(core_loc,next_hostname, ssh_port_loc, username_loc, password_loc, mac_loc, count_loc, None)
+                print("", end='\n')
+                print(f"                     где-то за {PURPLE}{next_hostname}{RESET}, {RED}но этот узел недоступен для анализа{RESET}")            
+                channel.close()
+                print("Поиск завершен")
         else:
-            print("", end='\n')
-            print(f"                     где-то за {PURPLE}{next_hostname}{RESET}, {RED}но этот узел недоступен для анализа{RESET}")            
+            channel, password_loc = open_channel(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc)
+            if find_unmanaged_switch(port_loc,channel,vendor):
+                print(f"{RED}где-то за неуправляемым свичем{RESET}" )
+            else:
+                print("", end='\n')      
             channel.close()
             print("Поиск завершен")
-    else:
-        channel, password_loc = open_channel(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc)
-        if find_unmanaged_switch(port_loc,channel,vendor):
-            print(f"{RED}где-то за неуправляемым свичем{RESET}" )
-        else:
-            print("", end='\n')      
-        channel.close()
-        print("Поиск завершен")
 
 # Check for passed command arguments when calling the script
 #if len(sys.argv) < 2:
@@ -453,7 +465,8 @@ while True:
     input_parametr = in_string.lower()
     if input_parametr == "quit" or input_parametr == "q":
         break
-    if check_mac_address(input_parametr.strip()):     
+    if check_mac_address(input_parametr.strip()):  
+        input_parametr = input_parametr.replace('-', ':')   
         clear_screen()
         execute_script(hostname, hostname, ssh_port, username, password, input_parametr, count, None)
     else:
