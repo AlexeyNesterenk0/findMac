@@ -475,26 +475,20 @@ while True:
     parametr = ''
     in_string = input(f"{WHITE_ON_BLACK}Введите HostName, IP или MAC-адрес искомого устройства: {RESET}")
     parametr = in_string.lower()
-    
+    clear_screen()
     if parametr == "quit" or parametr == "q":
         break
     if check_mac_address(parametr.strip()):  
         parametr = parametr.replace('-', ':') 
         execute_script(hostname, hostname, ssh_port, username, password, parametr, count, None)  
     elif check_ip_address(parametr.strip()):  
-        if is_valid_ip(parametr.strip()):
-            execute_script(hostname, hostname, ssh_port, username, password, None, count, parametr)
-        else:
-            print(f"{RED_BACKGROUND_WHITE_TEXT}Некорректный MAC, HostName или IP-адрес{RESET}")
-                    
+            execute_script(hostname, hostname, ssh_port, username, password, None, count, parametr)                 
     else:
-        if is_valid_ip(parametr.strip()):
             if ping_host(parametr.strip(), '1', debug):
-                parametr = socket.gethostbyname(parametr)  # get ip by hostname
+                parametr = socket.gethostbyname(parametr.strip())  # get ip by hostname
+                execute_script(hostname, hostname, ssh_port, username, password, None, count, parametr)
+            else:
                 print(f"{RED_BACKGROUND_WHITE_TEXT}Некорректный MAC, HostName или IP-адрес{RESET}")
                 continue  
-        else:
-            print(f"{RED_BACKGROUND_WHITE_TEXT}Некорректный MAC, HostName или IP-адрес{RESET}")
-            continue   
-    clear_screen()
+ 
     
