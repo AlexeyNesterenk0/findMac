@@ -23,6 +23,11 @@ import configparser
 import socket
 import requests
 import warnings
+#from io import StringIO
+
+# Создание объекта для перехвата вывода
+#error_output = StringIO()
+#sys.stderr = error_output
 
 warnings.filterwarnings("ignore") # Filter out all warnings
 
@@ -58,14 +63,8 @@ count = 0
 sys.path.append('func')
 from find_lag_function import find_lag
 from check_mac_address_function import check_mac_address
-
-def check_ip_address(ip_address):
-    ip_pattern = re.compile(r'^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$')  # Regular expression for checking the IP address
-
-    if ip_pattern.match(ip_address):
-        return True
-    else:
-        return False
+from check_ip_address_function import check_ip_address
+from find_sw_vendor_function import find_sw_vendor
 
 def clear_screen(): # Function to clear the screen
     os.system('cls' if os.name == 'nt' else 'clear')  # Clear the screen based on the operating system
@@ -86,19 +85,13 @@ def reconnect(hostname_loc):
     else:
         sys.exit()
     
-def ping_host(host,packet, debug):
+def ping_host(host, packet, debug):
     process = subprocess.Popen(['ping', '-c', packet, host], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, error = process.communicate()
     if debug:
         print(output)
     return True if not error else False
 
-def find_sw_vendor(output_loc):
-    sw_vendor_loc = re.search(r"Vector | QSW-", output_loc) #Упрощено для расботы с единственным  коммутатором QTECH
-    if sw_vendor_loc is not None:
-        return 'Vector'
-    else:
-        return 'Eltex'
 
 def establish_ssh_connection(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc): # Function to establish an SSH connection
     client = paramiko.SSHClient() # Create an SSH client object
@@ -350,7 +343,7 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
         mac_vector = mac_loc.replace(':', '-')
         for _ in tqdm(range(10), desc=f"Определение вендора {hostname_loc}", unit="%"):
             output = run_ssh_command(channel, f"show ver")
-            vendor = find_sw_vendor(output)
+            vendor = find_sw_vendor(output, debug)
         erase_line()
         port_loc = None
         for _ in tqdm(range(10), desc=f"Поиск MAC на {hostname_loc}", unit="%"):
