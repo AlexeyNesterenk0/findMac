@@ -496,11 +496,11 @@ while True:
                     ip = socket.gethostbyname(hostname_by_user.strip())  # get ip by hostname
                     execute_script(hostname, hostname, ssh_port, username, password, None, count, ip, hostname_by_user.strip(), parametr, LastLogOn)
                 else:
-                    print(f"{RED_BACKGROUND_WHITE_TEXT}               Некорректный ввод               {RESET}")   
+                    print(f"{RED_BACKGROUND_WHITE_TEXT}                    Некорректный ввод                    {RESET}")   
             else:
                 if ping_host(parametr.strip(), '1', debug):
                     ip = socket.gethostbyname(parametr.strip())  # get ip by hostname
                     execute_script(hostname, hostname, ssh_port, username, password, None, count, ip, parametr, None, None)
                 else:
-                    print(f"{RED_BACKGROUND_WHITE_TEXT}               Некорректный ввод               {RESET}")           
+                    print(f"{RED_BACKGROUND_WHITE_TEXT}                    Некорректный ввод                    {RESET}")           
     

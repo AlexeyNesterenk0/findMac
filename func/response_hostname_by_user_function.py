@@ -19,13 +19,12 @@ def response_base_srv(srv_base_loc, base_loc, username_loc, password_base_loc, f
                 key = item.get('Key')
                 if key == find_parametr_loc:
                     value = item.get('Value')
-                    print('начат парсинг даты')
                     value_datetime = {k: (datetime.strptime(v, '%d.%m.%Y %H:%M:%S') if re.match(r"^dd.dd.ddddsd{1,}:dd:dd", v) else datetime.strptime(v, '%d.%m.%Y %H:%M:%S')) for k, v in value.items()} # Нахождение максимального значения даты/времени
                     max_datetime_key = max(value_datetime, key=lambda k: value_datetime[k])
                     max_datetime_value = value_datetime[max_datetime_key]
 
-                    print(f"  Item: {max_datetime_key}")
-                    print(f"  LastLogOn: {max_datetime_value}")
+                    #print(f"  Item: {max_datetime_key}")
+                    #print(f"  LastLogOn: {max_datetime_value}")
                     break
              
         except json.JSONDecodeError as e:
