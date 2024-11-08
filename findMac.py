@@ -23,11 +23,6 @@ import configparser
 import socket
 import requests
 import warnings
-#from io import StringIO
-
-# Создание объекта для перехвата вывода
-#error_output = StringIO()
-#sys.stderr = error_output
 
 warnings.filterwarnings("ignore") # Filter out all warnings
 
@@ -57,6 +52,9 @@ ssh_port = int(config['Connection']['port'])  # Converting a port to an integer
 username = config['Connection']['username']
 password = config['Connection']['password']
 debug = int(config['Connection']['debug'])  # Convert debug to an integer
+username_base = config['Connection_base']['username']
+password_base = config['Connection_base']['password']
+srv_base = config['Connection_base']['srv']
 count = 0
 count_string = 1 # default coint string erase
 #debug = 1
@@ -67,6 +65,7 @@ from find_lag_function import find_lag
 from check_mac_address_function import check_mac_address
 from check_ip_address_function import check_ip_address
 from find_sw_vendor_function import find_sw_vendor
+from response_hostname_by_user_function import response_base_srv
 
 def clear_screen(): # Function to clear the screen
     os.system('cls' if os.name == 'nt' else 'clear')  # Clear the screen based on the operating system
@@ -328,21 +327,33 @@ def erase_line(count_string_loc):
         print(' '*160)   # Replace the current line with spaces
         print('\033[F', end='')  # Remove the previous line
 
-def output_info(ip_address_loc,mac_loc):
+def output_info(device_name_loc, login_loc, LastLogOn_loc, ip_address_loc,mac_loc):
     print(f"Информация об устройстве с физическим адресом {GREENL}{mac_loc}{RESET}:")
     print('\n')
     response_vendor(mac_loc)
-    if ip_address_loc is not None:
-        print(f"        {BLUE}IPv4{RESET}           {YELLOWL}{ip_address_loc}{RESET}")
-        hostname_by_ip = None
-        try:
-            hostname_by_ip = socket.gethostbyaddr(ip_address_loc)[0] # Get the hostname corresponding to the IP address
-            socket.gethostbyname
-            hostname_by_ip_crop =hostname_by_ip.split('.')[0]
-        except socket.herror as e:
-            hostname_by_ip_crop = None
-        if hostname_by_ip_crop is not None:             
-            print(f"        {BLUE}hostname{RESET}       {YELLOWL}{hostname_by_ip_crop}{RESET}")
+    hostname_by_ip_crop = None
+    if device_name_loc is not None:
+        hostname_by_ip_crop = device_name_loc
+    else:
+        if ip_address_loc is not None:
+            print(f"        {BLUE}IPv4{RESET}           {YELLOWL}{ip_address_loc}{RESET}")
+            hostname_by_ip = None
+            try:
+                hostname_by_ip = socket.gethostbyaddr(ip_address_loc)[0] # Get the hostname corresponding to the IP address
+                socket.gethostbyname
+                hostname_by_ip_crop =hostname_by_ip.split('.')[0]
+            except socket.herror as e:
+                hostname_by_ip_crop = None
+    if hostname_by_ip_crop is not None:             
+        print(f"        {BLUE}hostname{RESET}       {YELLOWL}{hostname_by_ip_crop}{RESET}")
+    if login_loc is not None:
+        print(f"        {BLUE}login{RESET}          {YELLOWL}{login_loc}{RESET}")
+        print(f"        {BLUE}logOn{RESET}          {YELLOWL}{LastLogOn_loc}{RESET}")
+    else:
+        login, LastLogOn = response_base_srv(srv_base,'Computers', username, password_base, hostname_by_ip_crop)
+        if login is not None:
+            print(f"        {BLUE}login{RESET}          {YELLOWL}{login}{RESET}")
+            print(f"        {BLUE}logOn{RESET}          {YELLOWL}{LastLogOn}{RESET}")
     print('\n')
             
 def response_vendor(mac_loc):   
@@ -358,7 +369,7 @@ def response_vendor(mac_loc):
         return False
     
                 
-def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc, mac_loc,count_loc,ip_loc):
+def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc, mac_loc,count_loc,ip_loc, device_name_loc, login_loc, LastLogOn_loc):
     channel, password_loc = open_channel(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc)
     if channel is not None:
         ccname = ''  
@@ -373,7 +384,8 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
                     output = run_ssh_command(channel, f"show arp | inc {ip_loc}")
                     mac_loc = find_mac_by_ip(output, ip_loc)
             erase_line(count_string)
-        mac_vector = mac_loc.replace(':', '-')
+        if mac_loc is not None:
+            mac_vector = mac_loc.replace(':', '-')
         for _ in tqdm(range(10), desc=f"Определение вендора {hostname_loc}", unit="%"):
             output = run_ssh_command(channel, f"show ver")
             vendor = find_sw_vendor(output, debug)
@@ -406,7 +418,7 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
                             output = run_ssh_command(channel, f"show arp | inc {mac_loc}")
                         ip_loc = find_ip_address(output, port_loc, vendor)
                     erase_line(count_string)
-                output_info(ip_loc,mac_loc)
+                output_info(device_name_loc, login_loc, LastLogOn_loc,ip_loc,mac_loc)
                 print(f"MAC-адрес {GREENL}{mac_loc}{RESET} обнаружен:")
                 if port_loc == 'self':
                     print(f"                     и это коммутатор {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
@@ -445,7 +457,7 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
                     print(f"Попытка подключения к  {PURPLE}{next_hostname}{RESET}")
                 channel, password_loc = open_channel(core_loc, next_hostname, ssh_port_loc, username_loc, password_loc)
                 if channel is not None:
-                    execute_script(core_loc,next_hostname, ssh_port_loc, username_loc, password_loc, mac_loc, count_loc, None)
+                    execute_script(core_loc,next_hostname, ssh_port_loc, username_loc, password_loc, mac_loc, count_loc, None, None, None, None)
                 else:
                     print(f"                     где-то за {PURPLE}{next_hostname}{RESET}, {RED}но этот узел недоступен для анализа{RESET}")   
                     print("Поиск завершен")    
@@ -464,12 +476,6 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
             channel.close()
             print("Поиск завершен")
 
-# Check for passed command arguments when calling the script
-#if len(sys.argv) < 2:
-#    print('Использование: python findMac.py "MAC"')
-#else:
-#    mac = sys.argv[1]
-#password = enter_pass()
 while True:    
     print(f"{GREY}--- Для выхода введите quit или q ---{RESET}")
     parametr = ''
@@ -480,15 +486,21 @@ while True:
         break
     if check_mac_address(parametr.strip()):  
         parametr = parametr.replace('-', ':') 
-        execute_script(hostname, hostname, ssh_port, username, password, parametr, count, None)  
+        execute_script(hostname, hostname, ssh_port, username, password, parametr, count, None, None, None, None ) 
     elif check_ip_address(parametr.strip()):  
-            execute_script(hostname, hostname, ssh_port, username, password, None, count, parametr)                 
+            execute_script(hostname, hostname, ssh_port, username, password, None, count, parametr, None, None, None)                 
     else:
-            if ping_host(parametr.strip(), '1', debug):
-                parametr = socket.gethostbyname(parametr.strip())  # get ip by hostname
-                execute_script(hostname, hostname, ssh_port, username, password, None, count, parametr)
+            hostname_by_user, LastLogOn = response_base_srv(srv_base,'Users', username, password_base, parametr)
+            if hostname_by_user is not None:
+                if ping_host(hostname_by_user, '1', debug):
+                    ip = socket.gethostbyname(hostname_by_user.strip())  # get ip by hostname
+                    execute_script(hostname, hostname, ssh_port, username, password, None, count, ip, hostname_by_user.strip(), parametr, LastLogOn)
+                else:
+                    print(f"{RED_BACKGROUND_WHITE_TEXT}               Некорректный ввод               {RESET}")   
             else:
-                print(f"{RED_BACKGROUND_WHITE_TEXT}Некорректный MAC, HostName или IP-адрес{RESET}")
-                continue  
- 
+                if ping_host(parametr.strip(), '1', debug):
+                    ip = socket.gethostbyname(parametr.strip())  # get ip by hostname
+                    execute_script(hostname, hostname, ssh_port, username, password, None, count, ip, parametr, None, None)
+                else:
+                    print(f"{RED_BACKGROUND_WHITE_TEXT}               Некорректный ввод               {RESET}")           
     
