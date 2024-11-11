@@ -56,17 +56,25 @@ debug = int(config['Connection']['debug'])  # Convert debug to an integer
 username_base = config['Connection_base']['username']
 password_base = config['Connection_base']['password']
 srv_base = config['Connection_base']['srv']
+
+ldap_srv = config['Connection_ldap']['ldap_srv']
+ldap_user = config['Connection_ldap']['ldap_user']
+ldap_password = config['Connection_ldap']['ldap_password']
+
+
+
 count = 0
 count_string = 1 # default coint string erase
 #debug = 1
 
-sys.path.append('findMAC/func')
-#sys.path.append('func')
+#sys.path.append('findMAC/func')
+sys.path.append('func')
 from find_lag_function import find_lag
 from check_mac_address_function import check_mac_address
 from check_ip_address_function import check_ip_address
 from find_sw_vendor_function import find_sw_vendor
 from response_hostname_by_user_function import response_base_srv
+from response_fio_function import response_fio
 
 def clear_screen(): # Function to clear the screen
     os.system('cls' if os.name == 'nt' else 'clear')  # Clear the screen based on the operating system
@@ -328,7 +336,7 @@ def erase_line(count_string_loc):
         print(' '*160)   # Replace the current line with spaces
         print('\033[F', end='')  # Remove the previous line
 
-def output_info(device_name_loc, login_loc, LastLogOn_loc, ip_address_loc,mac_loc):
+def output_info(device_name_loc, login_loc, LastLogOn_loc, ip_address_loc,mac_loc, ldap_srv, ldap_user, ldap_password):
     print(f"Информация об устройстве с физическим адресом {GREENL}{mac_loc}{RESET}:")
     print('\n')
     response_vendor(mac_loc)
@@ -348,12 +356,20 @@ def output_info(device_name_loc, login_loc, LastLogOn_loc, ip_address_loc,mac_lo
     if hostname_by_ip_crop is not None:             
         print(f"        {BLUE}hostname{RESET}       {YELLOWL}{hostname_by_ip_crop}{RESET}")
     if login_loc is not None:
-        print(f"        {BLUE}login{RESET}          {YELLOWL}{login_loc}{RESET}")
+        fio = response_fio(ldap_srv, ldap_user, ldap_password, login_loc)
+        if fio is not None:
+            print(f"        {BLUE}login{RESET}          {YELLOWL}{login_loc}    {fio}{RESET}")
+        else:
+             print(f"        {BLUE}login{RESET}          {YELLOWL}{login_loc}{RESET}")
         print(f"        {BLUE}logOn{RESET}          {YELLOWL}{LastLogOn_loc}{RESET}")
     else:
         login, LastLogOn = response_base_srv(srv_base,'Computers', username, password_base, hostname_by_ip_crop)
         if login is not None:
-            print(f"        {BLUE}login{RESET}          {YELLOWL}{login}{RESET}")
+            fio = response_fio(ldap_srv, ldap_user, ldap_password, login)
+            if fio is not None:
+                print(f"        {BLUE}login{RESET}          {YELLOWL}{login}    {fio}{RESET}")
+            else:
+                print(f"        {BLUE}login{RESET}          {YELLOWL}{login}{RESET}")
             print(f"        {BLUE}logOn{RESET}          {YELLOWL}{LastLogOn}{RESET}")
     print('\n')
             
@@ -434,14 +450,19 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
                     print(f"Порты в LAG    {lag_ports}")
             if count_loc == 0:
                 if ip_loc == None:
-                    for _ in tqdm(range(10), desc=f"Запрос IP", unit="%"):
-                        if vendor == 'Vector':
-                            output = run_ssh_command(channel, f"show arp | inc {mac_vector}")
-                        else:   
-                            output = run_ssh_command(channel, f"show arp | inc {mac_loc}")
+                    stop_flag.clear() #Отображение исполняемого в фоне процесса 
+                    status_text = f"Запрос Ip" ########
+                    t = threading.Thread(target=display_status, args=(status_text,)) ##########
+                    t.start() ############
+                    ######################
+                    if vendor == 'Vector':
+                        output = run_ssh_command(channel, f"show arp | inc {mac_vector}")
+                    else:   
+                        output = run_ssh_command(channel, f"show arp | inc {mac_loc}")
                         ip_loc = find_ip_address(output, port_loc, vendor)
-                    erase_line(count_string)
-                output_info(device_name_loc, login_loc, LastLogOn_loc,ip_loc,mac_loc)
+                    ######################
+                    stop_flag.set()   #Окончание отображения исполняемого в фоне процесса
+                output_info(device_name_loc, login_loc, LastLogOn_loc,ip_loc,mac_loc, ldap_srv, ldap_user, ldap_password)
                 print(f"MAC-адрес {GREENL}{mac_loc}{RESET} обнаружен:")
                 if port_loc == 'self':
                     print(f"                     и это коммутатор {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
