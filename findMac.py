@@ -11,7 +11,6 @@
 #- Configuration file: config.ini (contains connection parameters)
 #- Dependencies: Paramiko library, configparser library
 #===========================================================
-from tqdm import tqdm
 import paramiko
 from paramiko.ssh_exception import SSHException
 import getpass
@@ -23,6 +22,8 @@ import configparser
 import socket
 import requests
 import warnings
+import threading
+import time
 
 warnings.filterwarnings("ignore") # Filter out all warnings
 
@@ -357,11 +358,16 @@ def output_info(device_name_loc, login_loc, LastLogOn_loc, ip_address_loc,mac_lo
     print('\n')
             
 def response_vendor(mac_loc):   
-    for _ in tqdm(range(10), desc="Запрос информации о вендоре", unit="%"):
-        response = requests.get(f"https://api.maclookup.app/v2/macs/{mac_loc}", verify=False)    # Make a GET request to the API URL with SSL verification disabled
-        if response.status_code == 200: # Check if the request was successful
-            data = response.json()  # Convert the response content to JSON format
-    erase_line(count_string)
+    stop_flag.clear() #Отображение исполняемого в фоне процесса 
+    status_text = "Запрос информации о вендоре" ########
+    t = threading.Thread(target=display_status, args=(status_text,)) ##########
+    t.start() ############
+    ######################
+    response = requests.get(f"https://api.maclookup.app/v2/macs/{mac_loc}", verify=False)    # Make a GET request to the API URL with SSL verification disabled
+    if response.status_code == 200: # Check if the request was successful
+        data = response.json()  # Convert the response content to JSON format
+    ######################
+    stop_flag.set()   #Окончание отображения исполняемого в фоне процесса
     properties = ["company", "country", "updated"] # Display specific properties in a formatted list
     for prop in properties:
         print(f"        {BLUE}{prop}{RESET}        {GREEN}{data.get(prop, 'N/A')}{RESET}")
@@ -378,28 +384,45 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
         vlan = None
         lag = None
         lag_ports = None
-        if ip_loc is not None:
-            for _ in tqdm(range(10), desc=f"Поиск MAC по IP", unit="%"):
-                if ping_host(ip_loc,'1', debug):
-                    output = run_ssh_command(channel, f"show arp | inc {ip_loc}")
-                    mac_loc = find_mac_by_ip(output, ip_loc)
-            erase_line(count_string)
+        global status_text
+        if ip_loc is not None:                      
+            status_text = 'Поиск MAC по IP: ' #Отображение исполняемого в фоне процесса 
+            t = threading.Thread(target=display_status, args=(status_text,)) ##########
+            t.start() ##########
+            ################
+            if ping_host(ip_loc,'1', debug):
+                output = run_ssh_command(channel, f"show arp | inc {ip_loc}")
+                mac_loc = find_mac_by_ip(output, ip_loc)
+            ################
+            stop_flag.set()  #Окончание отображения исполняемого в фоне процесса    
         if mac_loc is not None:
             mac_vector = mac_loc.replace(':', '-')
-        for _ in tqdm(range(10), desc=f"Определение вендора {hostname_loc}", unit="%"):
-            output = run_ssh_command(channel, f"show ver")
-            vendor = find_sw_vendor(output, debug)
-        erase_line(count_string)
+        
+        stop_flag.clear() #Отображение исполняемого в фоне процесса 
+        status_text = f"Определение вендора {hostname_loc} " ########
+        t = threading.Thread(target=display_status, args=(status_text,)) ##########
+        t.start() ############
+        ######################
+        output = run_ssh_command(channel, f"show ver")
+        vendor = find_sw_vendor(output, debug)
+        ######################
+        stop_flag.set()   #Окончание отображения исполняемого в фоне процесса
         port_loc = None
-        for _ in tqdm(range(10), desc=f"Поиск MAC на {hostname_loc}", unit="%"):
-            if vendor == "Vector":            
-                output = run_ssh_command(channel, f"show mac-address-table | inc {mac_vector}")
-                port_loc, vlan = find_mac_address(output, mac_vector)
-            else:
-                output = run_ssh_command(channel, f"show mac add | inc {mac_loc}")
-                port_loc, vlan = find_mac_address(output, mac_loc)
-            ccname = find_cctname(output)
-        erase_line(count_string)
+   
+        stop_flag.clear() #Отображение исполняемого в фоне процесса 
+        status_text = f"Поиск MAC на {hostname_loc} " ########
+        t = threading.Thread(target=display_status, args=(status_text,)) ##########
+        t.start() ############
+        ######################
+        if vendor == "Vector":            
+            output = run_ssh_command(channel, f"show mac-address-table | inc {mac_vector}")
+            port_loc, vlan = find_mac_address(output, mac_vector)
+        else:
+            output = run_ssh_command(channel, f"show mac add | inc {mac_loc}")
+            port_loc, vlan = find_mac_address(output, mac_loc)
+        ccname = find_cctname(output)
+        ######################
+        stop_flag.set()   #Окончание отображения исполняемого в фоне процесса
         str_lag_ports = ''
         if port_loc is not None:  
             lag = None      
@@ -476,6 +499,18 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
             channel.close()
             print("Поиск завершен")
 
+def display_status(status_text):
+    symbols = ['/', '|', '\\', '-']
+    index = 0
+    while not stop_flag.is_set():
+        print(status_text, symbols[index], end='\r')
+        index = (index + 1) % len(symbols)
+        time.sleep(1)
+    print(' ' * len(status_text), end='\r')
+ 
+
+stop_flag = threading.Event()
+
 while True:    
     print(f"{GREY}--- Для выхода введите quit или q ---{RESET}")
     parametr = ''
@@ -488,7 +523,7 @@ while True:
         parametr = parametr.replace('-', ':') 
         execute_script(hostname, hostname, ssh_port, username, password, parametr, count, None, None, None, None ) 
     elif check_ip_address(parametr.strip()):  
-            execute_script(hostname, hostname, ssh_port, username, password, None, count, parametr, None, None, None)                 
+        execute_script(hostname, hostname, ssh_port, username, password, None, count, parametr, None, None, None)                 
     else:
             hostname_by_user, LastLogOn = response_base_srv(srv_base,'Users', username, password_base, parametr)
             if hostname_by_user is not None:
