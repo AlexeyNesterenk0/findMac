@@ -59,8 +59,8 @@ count = 0
 count_string = 1 # default coint string erase
 #debug = 1
 
-#sys.path.append('findMAC/func')
-sys.path.append('func')
+sys.path.append('findMAC/func')
+#sys.path.append('func')
 from find_lag_function import find_lag
 from check_mac_address_function import check_mac_address
 from check_ip_address_function import check_ip_address

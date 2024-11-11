@@ -19,7 +19,14 @@ def response_base_srv(srv_base_loc, base_loc, username_loc, password_base_loc, f
                 key = item.get('Key')
                 if key == find_parametr_loc:
                     value = item.get('Value')
-                    value_datetime = {k: (datetime.strptime(v, '%d.%m.%Y %H:%M:%S') if re.match(r"^dd.dd.ddddsd{1,}:dd:dd", v) else datetime.strptime(v, '%d.%m.%Y %H:%M:%S')) for k, v in value.items()} # Нахождение максимального значения даты/времени
+                    value_datetime = {}
+                    for k, v in value.items():
+                        if re.match(r"[A-Za-z]{3} \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}", v):
+                            value_datetime[k] = datetime.strptime(v, '%a %m/%d/%Y %H:%M:%S')
+                        elif re.match(r"\d{2}\.\d{2}\.\d{4} \d+:\d{2}:\d{2}", v):
+                            value_datetime[k] = datetime.strptime(v, '%d.%m.%Y %H:%M:%S')
+                        else:
+                            value_datetime[k] = datetime.strptime(v, '%d.%m.%Y %H:%M:%S')
                     max_datetime_key = max(value_datetime, key=lambda k: value_datetime[k])
                     max_datetime_value = value_datetime[max_datetime_key]
 
