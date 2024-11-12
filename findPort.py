@@ -25,6 +25,7 @@ import warnings
 import threading
 import time
 
+
 warnings.filterwarnings("ignore") # Filter out all warnings
 
 if not os.path.exists('config.ini'):    # Checking for file availability
@@ -33,17 +34,7 @@ if not os.path.exists('config.ini'):    # Checking for file availability
 config = configparser.ConfigParser()  # Creating a configuration object
 config.read('config.ini')   # Reading the configuration file
 
-RED = '\033[91m'  # ANSI Escape sequence for red
-BLUE = '\u001b[34;1m'   # ANSI Escape sequence for blue
-GREEN = '\u001b[32m'    # ANSI Escape sequence for green
-GREENL = '\u001b[32;1m'    # ANSI Escape sequence for bright green color
-YELLOW = '\u001b[33m'   # ANSI Escape sequence for yellow
-YELLOWL = '\u001b[33;1m' # ANSI Escape sequence for bright yellow
-PURPLE = '\u001b[35;1m' # ANSI Escape sequence for magenta
-WHITE_ON_BLACK = '\033[7;37;40m' # ANSI escape sequence for white background and black font
-RED_BACKGROUND_WHITE_TEXT = '\033[41m' # ANSI escape sequence for red background and black font
-GREY = "\033[90m"     #ANSI Escape sequence for grey
-RESET = '\033[0m'     # ANSI Escape sequence for color reset
+
 
 
 # Getting values from a file
@@ -56,7 +47,6 @@ debug = int(config['Connection']['debug'])  # Convert debug to an integer
 username_base = config['Connection_base']['username']
 password_base = config['Connection_base']['password']
 srv_base = config['Connection_base']['srv']
-
 ldap_srv = config['Connection_ldap']['ldap_srv']
 ldap_user = config['Connection_ldap']['ldap_user']
 ldap_password = config['Connection_ldap']['ldap_password']
@@ -67,20 +57,27 @@ count = 0
 count_string = 1 # default coint string erase
 #debug = 1
 
-#sys.path.append('findMAC/func')
-sys.path.append('func')
+sys.path.append('findMAC/func')
+#sys.path.append('func')
+
+from color_constants import ALLERT, KEY, HOSTNAME, MAC, LAG, VALUE, LOCATION, INPUTLINE, ERROR, NOTIFICATION, RESET
+
 from find_lag_function import find_lag
 from check_mac_address_function import check_mac_address
 from check_ip_address_function import check_ip_address
 from find_sw_vendor_function import find_sw_vendor
 from response_hostname_by_user_function import response_base_srv
 from response_fio_function import response_fio
+from find_cirillic_function import check_cyrillic
+from response_login_function import response_login
+from display_and_select_list_function import display_and_select_list
+from clear_screen_function import clear_screen
 
 def clear_screen(): # Function to clear the screen
     os.system('cls' if os.name == 'nt' else 'clear')  # Clear the screen based on the operating system
     
 def enter_pass():    
-    result = getpass.getpass(f"{WHITE_ON_BLACK}Введите код доступа к ядру сети: {RESET}")
+    result = getpass.getpass(f"{INPUTLINE}Введите код доступа к ядру сети: {RESET}")
     clear_screen()  # Call the function to clear the screen
     return result
 
@@ -111,7 +108,7 @@ def ping_host(ping_host_loc, packet, debug):
 
 def reconnect(hostname_loc):
     print(f"Узел {hostname_loc} недоступен")
-    in_ansver = input(f"{WHITE_ON_BLACK}Повторить попытку подключения?: Y/N (N) {RESET}")
+    in_ansver = input(f"{INPUTLINE}Повторить попытку подключения?: Y/N (N) {RESET}")
     if in_ansver.lower() == "y" or in_ansver.lower() == "yes":
         if ping_host(hostname_loc,'4',debug):
             return True
@@ -146,7 +143,7 @@ def establish_ssh_connection(core_loc,hostname_loc, ssh_port_loc, username_loc, 
     except SSHException as e:      
         if hostname_loc == core_loc:
             print(f"Авторизация не пройдена")
-            in_ansver = input(f"{WHITE_ON_BLACK}Повторить попытку авторизации?: Y/N (N) {RESET}") # Prompt user to retry authorization
+            in_ansver = input(f"{INPUTLINE}Повторить попытку авторизации?: Y/N (N) {RESET}") # Prompt user to retry authorization
             if in_ansver.lower() == "y" or in_ansver.lower() == "yes":
                 password_loc = enter_pass()
                 ping_host(hostname_loc,'4',debug)
@@ -337,7 +334,7 @@ def erase_line(count_string_loc):
         print('\033[F', end='')  # Remove the previous line
 
 def output_info(device_name_loc, login_loc, LastLogOn_loc, ip_address_loc,mac_loc, ldap_srv, ldap_user, ldap_password):
-    print(f"Информация об устройстве с физическим адресом {GREENL}{mac_loc}{RESET}:")
+    print(f"Информация об устройстве с физическим адресом {MAC}{mac_loc}{RESET}:")
     print('\n')
     response_vendor(mac_loc)
     hostname_by_ip_crop = None
@@ -345,7 +342,7 @@ def output_info(device_name_loc, login_loc, LastLogOn_loc, ip_address_loc,mac_lo
         hostname_by_ip_crop = device_name_loc
     else:
         if ip_address_loc is not None:
-            print(f"        {BLUE}IPv4{RESET}           {YELLOWL}{ip_address_loc}{RESET}")
+            print(f"        {KEY}IPv4{RESET}           {VALUE}{ip_address_loc}{RESET}")
             hostname_by_ip = None
             try:
                 hostname_by_ip = socket.gethostbyaddr(ip_address_loc)[0] # Get the hostname corresponding to the IP address
@@ -354,23 +351,23 @@ def output_info(device_name_loc, login_loc, LastLogOn_loc, ip_address_loc,mac_lo
             except socket.herror as e:
                 hostname_by_ip_crop = None
     if hostname_by_ip_crop is not None:             
-        print(f"        {BLUE}hostname{RESET}       {YELLOWL}{hostname_by_ip_crop}{RESET}")
+        print(f"        {KEY}hostname{RESET}       {VALUE}{hostname_by_ip_crop}{RESET}")
     if login_loc is not None:
         fio = response_fio(ldap_srv, ldap_user, ldap_password, login_loc)
         if fio is not None:
-            print(f"        {BLUE}login{RESET}          {YELLOWL}{login_loc}    {fio}{RESET}")
+            print(f"        {KEY}login{RESET}          {VALUE}{login_loc}    {fio}{RESET}")
         else:
-             print(f"        {BLUE}login{RESET}          {YELLOWL}{login_loc}{RESET}")
-        print(f"        {BLUE}logOn{RESET}          {YELLOWL}{LastLogOn_loc}{RESET}")
+             print(f"        {KEY}login{RESET}          {VALUE}{login_loc}{RESET}")
+        print(f"        {KEY}logOn{RESET}          {VALUE}{LastLogOn_loc}{RESET}")
     else:
         login, LastLogOn = response_base_srv(srv_base,'Computers', username, password_base, hostname_by_ip_crop)
         if login is not None:
             fio = response_fio(ldap_srv, ldap_user, ldap_password, login)
             if fio is not None:
-                print(f"        {BLUE}login{RESET}          {YELLOWL}{login}    {fio}{RESET}")
+                print(f"        {KEY}login{RESET}          {VALUE}{login}    {fio}{RESET}")
             else:
-                print(f"        {BLUE}login{RESET}          {YELLOWL}{login}{RESET}")
-            print(f"        {BLUE}logOn{RESET}          {YELLOWL}{LastLogOn}{RESET}")
+                print(f"        {KEY}login{RESET}          {VALUE}{login}{RESET}")
+            print(f"        {KEY}logOn{RESET}          {VALUE}{LastLogOn}{RESET}")
     print('\n')
             
 def response_vendor(mac_loc):   
@@ -386,7 +383,7 @@ def response_vendor(mac_loc):
     stop_flag.set()   #Окончание отображения исполняемого в фоне процесса
     properties = ["company", "country", "updated"] # Display specific properties in a formatted list
     for prop in properties:
-        print(f"        {BLUE}{prop}{RESET}        {GREEN}{data.get(prop, 'N/A')}{RESET}")
+        print(f"        {KEY}{prop}{RESET}        {HOSTNAME}{data.get(prop, 'N/A')}{RESET}")
     else:
         return False
     
@@ -463,24 +460,24 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
                     ######################
                     stop_flag.set()   #Окончание отображения исполняемого в фоне процесса
                 output_info(device_name_loc, login_loc, LastLogOn_loc,ip_loc,mac_loc, ldap_srv, ldap_user, ldap_password)
-                print(f"MAC-адрес {GREENL}{mac_loc}{RESET} обнаружен:")
+                print(f"MAC-адрес {MAC}{mac_loc}{RESET} обнаружен:")
                 if port_loc == 'self':
-                    print(f"                     и это коммутатор {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
+                    print(f"                     и это коммутатор {HOSTNAME}{hostname_loc}{RESET}  в {LOCATION}{location}{RESET}")
                 else:
                     if lag_ports is not None:
                         str_lag_ports = ",".join(lag_ports)
-                        print(f"                     в группе портов {YELLOW}{lag}{RESET} на портах {YELLOWL}{str_lag_ports}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
+                        print(f"                     в группе портов {LAG}{lag}{RESET} на портах {VALUE}{str_lag_ports}{RESET} коммутатора {HOSTNAME}{hostname_loc}{RESET}  в {LOCATION}{location}{RESET}")
                     else:  
-                        print(f"                     на порту {YELLOWL}{port_loc}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в {PURPLE}{location}{RESET}")
+                        print(f"                     на порту {VALUE}{port_loc}{RESET} коммутатора {HOSTNAME}{hostname_loc}{RESET}  в {LOCATION}{location}{RESET}")
             else:
                 if port_loc == 'self':
-                    print(f"                     это коммутатор {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET}",end = ' ')
+                    print(f"                     это коммутатор {HOSTNAME}{hostname_loc}{RESET}  в КШ {LOCATION}{ccname}{RESET}",end = ' ')
                 else:
                     if lag_ports is not None:
                         str_lag_ports = ",".join(lag_ports)
-                        print(f"                     в группе портов {YELLOW}{lag}{RESET} на портах {YELLOWL}{str_lag_ports}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в  КШ {PURPLE}{ccname}{RESET} в {YELLOW}{vlan}{RESET} VLAN",end = ' ')
+                        print(f"                     в группе портов {LAG}{lag}{RESET} на портах {VALUE}{str_lag_ports}{RESET} коммутатора {HOSTNAME}{hostname_loc}{RESET}  в  КШ {LOCATION}{ccname}{RESET} в {LAG}{vlan}{RESET} VLAN",end = ' ')
                     else:  
-                        print(f"                     на порту {YELLOWL}{port_loc}{RESET} коммутатора {GREEN}{hostname_loc}{RESET}  в КШ {PURPLE}{ccname}{RESET} в {YELLOW}{vlan}{RESET} VLAN",end = ' ')
+                        print(f"                     на порту {VALUE}{port_loc}{RESET} коммутатора {HOSTNAME}{hostname_loc}{RESET}  в КШ {LOCATION}{ccname}{RESET} в {LAG}{vlan}{RESET} VLAN",end = ' ')
             output=''
             if lag_ports is not None:
                 for lag_port in lag_ports:
@@ -490,31 +487,31 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
             else:
                 next_hostname = find_next_sw(channel, vendor, port_loc)
         else:
-            print(f"MAC-адрес {GREENL}{mac_loc}{RESET} не обнаружен в сети")        
+            print(f"MAC-адрес {MAC}{mac_loc}{RESET} не обнаружен в сети")        
         if next_hostname is not None and next_hostname!=hostname_loc:
             count_loc+=1
             if ping_host(next_hostname,'1', debug):
                 if debug:
-                    print(f"Узел {PURPLE}{next_hostname}{RESET} доступен")
+                    print(f"Узел {LOCATION}{next_hostname}{RESET} доступен")
                 channel.close()
                 if debug:
-                    print(f"Попытка подключения к  {PURPLE}{next_hostname}{RESET}")
+                    print(f"Попытка подключения к  {LOCATION}{next_hostname}{RESET}")
                 channel, password_loc = open_channel(core_loc, next_hostname, ssh_port_loc, username_loc, password_loc)
                 if channel is not None:
                     execute_script(core_loc,next_hostname, ssh_port_loc, username_loc, password_loc, mac_loc, count_loc, None, None, None, None)
                 else:
-                    print(f"                     где-то за {PURPLE}{next_hostname}{RESET}, {RED}но этот узел недоступен для анализа{RESET}")   
+                    print(f"                     где-то за {LOCATION}{next_hostname}{RESET}, {ALLERT}но этот узел недоступен для анализа{RESET}")   
                     print("Поиск завершен")    
 
             else:
                 print("", end='\n')
-                print(f"                     где-то за {PURPLE}{next_hostname}{RESET}, {RED}но этот узел недоступен для анализа{RESET}")            
+                print(f"                     где-то за {LOCATION}{next_hostname}{RESET}, {ALLERT}но этот узел недоступен для анализа{RESET}")            
                 channel.close()
                 print("Поиск завершен")
         else:
             channel, password_loc = open_channel(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc)
             if find_unmanaged_switch(port_loc,channel,vendor):
-                print(f"{RED}где-то за неуправляемым свичем{RESET}" )
+                print(f"{ALLERT}где-то за неуправляемым свичем{RESET}" )
             else:
                 print("", end='\n')      
             channel.close()
@@ -533,9 +530,9 @@ def display_status(status_text):
 stop_flag = threading.Event()
 
 while True:    
-    print(f"{GREY}--- Для выхода введите quit или q ---{RESET}")
+    print(f"{NOTIFICATION}--- Для выхода введите quit или q ---{RESET}")
     parametr = ''
-    in_string = input(f"{WHITE_ON_BLACK}Введите HostName, IP или MAC-адрес искомого устройства: {RESET}")
+    in_string = input(f"{INPUTLINE}Введите HostName, IP или MAC-адрес искомого устройства: {RESET}")
     parametr = in_string.lower()
     clear_screen()
     if parametr == "quit" or parametr == "q":
@@ -546,17 +543,22 @@ while True:
     elif check_ip_address(parametr.strip()):  
         execute_script(hostname, hostname, ssh_port, username, password, None, count, parametr, None, None, None)                 
     else:
-            hostname_by_user, LastLogOn = response_base_srv(srv_base,'Users', username, password_base, parametr)
-            if hostname_by_user is not None:
-                if ping_host(hostname_by_user, '1', debug):
-                    ip = socket.gethostbyname(hostname_by_user.strip())  # get ip by hostname
-                    execute_script(hostname, hostname, ssh_port, username, password, None, count, ip, hostname_by_user.strip(), parametr, LastLogOn)
-                else:
-                    print(f"{RED_BACKGROUND_WHITE_TEXT}                    Некорректный ввод                    {RESET}")   
+        if check_cyrillic(parametr):
+            login_list, displayName_list = response_login(ldap_srv, ldap_user, ldap_password, parametr)
+            input_index = display_and_select_list(displayName_list)
+            parametr = login_list[input_index]
+    
+        hostname_by_user, LastLogOn = response_base_srv(srv_base,'Users', username, password_base, parametr)
+        if hostname_by_user is not None:
+            if ping_host(hostname_by_user, '1', debug):
+                ip = socket.gethostbyname(hostname_by_user.strip())  # get ip by hostname
+                execute_script(hostname, hostname, ssh_port, username, password, None, count, ip, hostname_by_user.strip(), parametr, LastLogOn)
             else:
-                if ping_host(parametr.strip(), '1', debug):
-                    ip = socket.gethostbyname(parametr.strip())  # get ip by hostname
-                    execute_script(hostname, hostname, ssh_port, username, password, None, count, ip, parametr, None, None)
-                else:
-                    print(f"{RED_BACKGROUND_WHITE_TEXT}                    Некорректный ввод                    {RESET}")           
+                print(f"{ERROR}                    Некорректный ввод                    {RESET}")   
+        else:
+            if ping_host(parametr.strip(), '1', debug):
+                ip = socket.gethostbyname(parametr.strip())  # get ip by hostname
+                execute_script(hostname, hostname, ssh_port, username, password, None, count, ip, parametr, None, None)
+            else:
+                print(f"{ERROR}                    Некорректный ввод                    {RESET}")           
     
