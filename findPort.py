@@ -73,8 +73,6 @@ from response_login_function import response_login
 from display_and_select_list_function import display_and_select_list
 from clear_screen_function import clear_screen
 
-def clear_screen(): # Function to clear the screen
-    os.system('cls' if os.name == 'nt' else 'clear')  # Clear the screen based on the operating system
     
 def enter_pass():    
     result = getpass.getpass(f"{INPUTLINE}Введите код доступа к ядру сети: {RESET}")
@@ -118,13 +116,18 @@ def reconnect(hostname_loc):
         sys.exit()
 
 def find_next_sw(channel, vendor, port_loc):
-    #for _ in tqdm(range(10), desc="Поиск следующего коммутатора", unit="%"):
+    stop_flag.clear() #Отображение исполняемого в фоне процесса 
+    status_text = f"Поиск следующего коммутатора" ########
+    t = threading.Thread(target=display_status, args=(status_text,)) ##########
+    t.start() ############
+    ######################
     command = f"show lldp neighbors brief | inc {port_loc}" if vendor == "Vector" else f"show lldp neighbors | inc {port_loc}"
     output = run_ssh_command(channel, command)
     if debug:
         print(output)
     next_hostname_loc = find_next_hostname(output, port_loc)
-    #erase_line(count_string)
+    ######################
+    stop_flag.set()   #Окончание отображения исполняемого в фоне процесса
     if next_hostname_loc is not None:
         return next_hostname_loc
     else:
