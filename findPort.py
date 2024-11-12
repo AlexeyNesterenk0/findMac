@@ -474,13 +474,13 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
                         print(f"                     на порту {VALUE}{port_loc}{RESET} коммутатора {HOSTNAME}{hostname_loc}{RESET}  в {LOCATION}{location}{RESET}")
             else:
                 if port_loc == 'self':
-                    print(f"                     это коммутатор {HOSTNAME}{hostname_loc}{RESET}  в КШ {LOCATION}{ccname}{RESET}",end = ' ')
+                    print(f"                     это коммутатор {HOSTNAME}{hostname_loc}{RESET}  в КШ {LOCATION}{ccname}{RESET}") #,end = ' '
                 else:
                     if lag_ports is not None:
                         str_lag_ports = ",".join(lag_ports)
-                        print(f"                     в группе портов {LAG}{lag}{RESET} на портах {VALUE}{str_lag_ports}{RESET} коммутатора {HOSTNAME}{hostname_loc}{RESET}  в  КШ {LOCATION}{ccname}{RESET} в {LAG}{vlan}{RESET} VLAN",end = ' ')
+                        print(f"                     в группе портов {LAG}{lag}{RESET} на портах {VALUE}{str_lag_ports}{RESET} коммутатора {HOSTNAME}{hostname_loc}{RESET}  в  КШ {LOCATION}{ccname}{RESET} в {LAG}{vlan}{RESET} VLAN") #,end = ' '
                     else:  
-                        print(f"                     на порту {VALUE}{port_loc}{RESET} коммутатора {HOSTNAME}{hostname_loc}{RESET}  в КШ {LOCATION}{ccname}{RESET} в {LAG}{vlan}{RESET} VLAN",end = ' ')
+                        print(f"                     на порту {VALUE}{port_loc}{RESET} коммутатора {HOSTNAME}{hostname_loc}{RESET}  в КШ {LOCATION}{ccname}{RESET} в {LAG}{vlan}{RESET} VLAN") #,end = ' '
             output=''
             if lag_ports is not None:
                 for lag_port in lag_ports:
@@ -524,11 +524,11 @@ def display_status(status_text):
     symbols = ['/', '|', '\\', '-']
     index = 0
     while not stop_flag.is_set():
-        print(status_text, symbols[index], end='\r')
-        index = (index + 1) % len(symbols)
+        print(status_text,symbols[index],end='\r')
         time.sleep(1)
-    print(' ' * len(status_text), end='\r')
- 
+        index = (index + 1) % len(symbols)
+        print(' '*(len(status_text)+10),end='\r')
+  
 
 stop_flag = threading.Event()
 
