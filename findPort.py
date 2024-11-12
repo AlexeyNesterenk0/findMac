@@ -57,8 +57,8 @@ count = 0
 count_string = 1 # default coint string erase
 #debug = 1
 
-#sys.path.append('findMAC/func')
-sys.path.append('func')
+sys.path.append('findMAC/func')
+#sys.path.append('func')
 
 from color_constants import ALLERT, KEY, HOSTNAME, MAC, LAG, VALUE, LOCATION, INPUTLINE, ERROR, NOTIFICATION, RESET
 
@@ -549,12 +549,12 @@ while True:
         if check_cyrillic(parametr):
             login_list, displayName_list = response_login(ldap_srv, ldap_user, ldap_password, parametr)
             if login_list is not None:
-                if len(login_list) == 1:
+                if len(login_list) == 1:                    
                     parametr = login_list[0]
                 else:
                     input_index = display_and_select_list(displayName_list)
-                    parametr = login_list[input_index]
-    
+                    parametr = login_list[input_index] 
+
         hostname_by_user, LastLogOn = response_base_srv(srv_base,'Users', username, password_base, parametr)
         if hostname_by_user is not None:
             if ping_host(hostname_by_user, '1', debug):
