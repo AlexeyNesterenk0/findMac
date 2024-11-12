@@ -57,8 +57,8 @@ count = 0
 count_string = 1 # default coint string erase
 #debug = 1
 
-sys.path.append('findMAC/func')
-#sys.path.append('func')
+#sys.path.append('findMAC/func')
+sys.path.append('func')
 
 from color_constants import ALLERT, KEY, HOSTNAME, MAC, LAG, VALUE, LOCATION, INPUTLINE, ERROR, NOTIFICATION, RESET
 
@@ -514,7 +514,7 @@ def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_l
         else:
             channel, password_loc = open_channel(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc)
             if find_unmanaged_switch(port_loc,channel,vendor):
-                print(f"{ALLERT}где-то за неуправляемым свичем{RESET}" )
+                print(f"                     {ALLERT}где-то за неуправляемым свичем{RESET}" )
             else:
                 print("", end='\n')      
             channel.close()
@@ -533,12 +533,12 @@ def display_status(status_text):
 stop_flag = threading.Event()
 
 while True:    
-    print(f"{NOTIFICATION}--- Для выхода введите quit или q ---{RESET}")
+    print(f"{NOTIFICATION}--- Для выхода введите Выход, quit или q ---{RESET}")
     parametr = ''
     in_string = input(f"{INPUTLINE}Введите HostName, IP или MAC-адрес искомого устройства: {RESET}")
     parametr = in_string.lower()
     clear_screen()
-    if parametr == "quit" or parametr == "q":
+    if parametr == "quit" or parametr == "q" or parametr == "выход":
         break
     if check_mac_address(parametr.strip()):  
         parametr = parametr.replace('-', ':') 
@@ -548,8 +548,12 @@ while True:
     else:
         if check_cyrillic(parametr):
             login_list, displayName_list = response_login(ldap_srv, ldap_user, ldap_password, parametr)
-            input_index = display_and_select_list(displayName_list)
-            parametr = login_list[input_index]
+            if login_list is not None:
+                if len(login_list) == 1:
+                    parametr = login_list[0]
+                else:
+                    input_index = display_and_select_list(displayName_list)
+                    parametr = login_list[input_index]
     
         hostname_by_user, LastLogOn = response_base_srv(srv_base,'Users', username, password_base, parametr)
         if hostname_by_user is not None:
