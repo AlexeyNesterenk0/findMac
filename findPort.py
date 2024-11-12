@@ -7,13 +7,14 @@
 #The script interacts with network devices based on the provided configuration parameters in the config.ini file.
 #===========================================================
 #- Author: Alexey Nesterenko
-#- Date: 10.2024
+#- Date: 11.2024
 #- Configuration file: config.ini (contains connection parameters)
-#- Dependencies: Paramiko library, configparser library
+#- Dependencies: Paramiko library, configparser library, getpass library, re library, os library, sys library, subprocess library,
+#  configparser library, socket library, requests library, warnings library, threading library, time library, locale library
 #===========================================================
 import importlib.util
 # Список необходимых модулей для скрипта
-required_modules = ['paramiko', 'getpass', 're', 'os', 'sys', 'subprocess', 'configparser', 'socket', 'requests', 'warnings', 'threading', 'time']
+required_modules = ['paramiko', 'getpass', 're', 'os', 'sys', 'subprocess', 'configparser', 'socket', 'requests', 'warnings', 'threading', 'time', 'ldap3', 'json', 'datetime', 'locale']
 # Проверка установленных модулей
 missing_modules = []
 for module in required_modules:
@@ -23,9 +24,10 @@ for module in required_modules:
 
 # Вывод списка необходимых модулей, которых не хватает
 if missing_modules:
-    print("Необходимо установить следующие модули:")
+    print(f"\033[41m!!!       Запуск Невозможен         !!!\033[0m")
+    print(f"\033[41mНеобходимо установить следующие модули:\033[0m")
     for module in missing_modules:
-        print(module)
+        print(f"\u001b[34;1m    {module}\033[0m")
 else:
 
     import paramiko
@@ -41,7 +43,10 @@ else:
     import warnings
     import threading
     import time
+    import locale
 
+    global terminal_encoding 
+    terminal_encoding = locale.getpreferredencoding()
     warnings.filterwarnings("ignore") # Filter out all warnings
 
     if not os.path.exists('config.ini'):    # Checking for file availability
@@ -66,8 +71,8 @@ else:
 
     count = 0
     count_string = 1 # default coint string erase
-    #sys.path.append('findMAC/func')
-    sys.path.append('func')
+    sys.path.append('findMAC/func')
+    #sys.path.append('func')
 
     from color_constants import ALLERT, KEY, HOSTNAME, MAC, LAG, VALUE, LOCATION, INPUTLINE, ERROR, NOTIFICATION, RESET
 
@@ -76,11 +81,14 @@ else:
     from check_ip_address_function import check_ip_address
     from find_sw_vendor_function import find_sw_vendor
     from response_hostname_by_user_function import response_base_srv
-    from response_fio_function import response_fio
+    from response_fio_function import response_fio 
     from find_cirillic_function import check_cyrillic
     from response_login_function import response_login
     from display_and_select_list_function import display_and_select_list
     from clear_screen_function import clear_screen
+
+    if debug:
+        print("Кодировка терминала:", terminal_encoding)
 
         
     def enter_pass():    
@@ -100,10 +108,10 @@ else:
             process = subprocess.Popen(['ping', '-W', '1', '-c', packet, ping_host_loc], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             output, error = process.communicate()
             if debug:
-                print(output.decode())  # Декодируем вывод для отладки
+                print(output.decode(terminal_encoding))  # Декодируем вывод для отладки
             if error:  # Если есть ошибка
                 return False
-            lines = output.decode().splitlines()  # Разделяем вывод на строки
+            lines = output.decode(terminal_encoding).splitlines()  # Разделяем вывод на строки
             for line in lines:
                 if '0 received' in line or 'сбой' in line or 'failure' in line:  # Если все пакеты потеряны
                     return False
@@ -175,7 +183,7 @@ else:
             output = ''
             while True:
                 if channel.recv_ready():
-                    output += channel.recv(1024).decode('utf-8')
+                    output += channel.recv(1024).decode(terminal_encoding)
                     if output.endswith('#') or output.endswith('>'):
                         break
             return channel, password_loc
@@ -187,7 +195,7 @@ else:
         output = ''
         while True:
             if channel.recv_ready():
-                output += channel.recv(1024).decode('utf-8')
+                output += channel.recv(1024).decode(terminal_encoding)
                 if output.endswith('--More-- '):    # Check if the output contains '--More--' which indicates more scrolling is needed
                     channel.send('\n')
                 if output.endswith('#') or output.endswith('>'):    # Check if the output ends with prompt symbols '#' or '>'
@@ -430,8 +438,8 @@ else:
             vendor = find_sw_vendor(output, debug)
             ######################
             stop_flag.set()   #Окончание отображения исполняемого в фоне процесса
-            port_loc = None
-    
+
+            port_loc = None    
             stop_flag.clear() #Отображение исполняемого в фоне процесса 
             status_text = f"Поиск MAC на {hostname_loc} " ########
             t = threading.Thread(target=display_status, args=(status_text,)) ##########

@@ -1,4 +1,3 @@
-import ldap
 from ldap3 import Server, Connection, SUBTREE, ALL_ATTRIBUTES
 
 def response_login(ldap_srv, ldap_user, ldap_password, part_of_full_name):
