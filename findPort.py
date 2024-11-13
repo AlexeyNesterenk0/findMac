@@ -24,10 +24,16 @@ for module in required_modules:
 
 # Вывод списка необходимых модулей, которых не хватает
 if missing_modules:
-    print(f"\033[41m!!!       Запуск Невозможен         !!!\033[0m")
-    print(f"\033[41mНеобходимо установить следующие модули:\033[0m")
+    print(f"\033[41m!!!        Запуск Невозможен         !!!\033[0m")
+    print(f"\033[41m Необходимо установить следующие модули:\033[0m")
     for module in missing_modules:
-        print(f"\u001b[34;1m    {module}\033[0m")
+        dopSpaces=''
+        spaces = ' ' * ((40 - len(module)) // 2) 
+        if ((2 * len(spaces) + len(module))) < 40:
+            spaces = ' ' * (((40 - len(module)) // 2))
+            dopSpaces=' '
+        print(f"\033[41m{spaces}\033[0m\u001b[34;1m{module}\033[41m{spaces}{dopSpaces}\033[0m")
+    print(f"\033[41m!!!        Запуск Невозможен         !!!\033[0m")
 else:
 
     import paramiko
@@ -147,7 +153,6 @@ else:
             return next_hostname_loc
         else:
             return None
-
 
     def establish_ssh_connection(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc): # Function to establish an SSH connection
         client = paramiko.SSHClient() # Create an SSH client object
