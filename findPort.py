@@ -24,6 +24,7 @@ for module in required_modules:
 
 # Вывод списка необходимых модулей, которых не хватает
 if missing_modules:
+    print('\n')
     print(f"\033[41m!!!        Запуск Невозможен         !!!\033[0m")
     print(f"\033[41m Необходимо установить следующие модули:\033[0m")
     for module in missing_modules:
@@ -77,8 +78,8 @@ else:
 
     count = 0
     count_string = 1 # default coint string erase
-    sys.path.append('findMAC/func')
-    #sys.path.append('func')
+    
+    sys.path.append('func')
 
     from color_constants import ALLERT, KEY, HOSTNAME, MAC, LAG, VALUE, LOCATION, INPUTLINE, ERROR, NOTIFICATION, RESET
 
