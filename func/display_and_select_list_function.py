@@ -3,7 +3,7 @@ from color_constants import VALUE, INPUTLINE, RESET
 
    
 
-def display_and_select_list(items):
+def display_and_select_list(items, debug):
     while True:
         # Вывод списка в терминале
         print('Найдено несколько пользователей:')
@@ -21,10 +21,10 @@ def display_and_select_list(items):
                 break
             else:
                 print("{ERROR}Неверный индекс выбранного пункта.{RESET}")
-                clear_screen()
+                if not debug: clear_screen()
         except ValueError:
             print("{ERROR}Пожалуйста, введите корректный индекс.{RESET}")
-            clear_screen()
-    clear_screen()
+            if not debug: clear_screen()
+    if not debug: clear_screen()
     return choice_index
 

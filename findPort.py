@@ -37,7 +37,6 @@ if missing_modules:
 else:
 
     import paramiko
-    from paramiko.ssh_exception import SSHException
     import getpass
     import re
     import os
@@ -76,9 +75,9 @@ else:
     ldap_password = config['Connection_ldap']['ldap_password']
 
     count = 0
-    count_string = 1 # default coint string erase
-    sys.path.append('findMAC/func')
-    #sys.path.append('func')
+    
+    #sys.path.append('findMAC/func')
+    sys.path.append('func')
 
     from color_constants import ALLERT, KEY, HOSTNAME, MAC, LAG, VALUE, LOCATION, INPUTLINE, ERROR, NOTIFICATION, RESET
 
@@ -93,13 +92,34 @@ else:
     from display_and_select_list_function import display_and_select_list
     from clear_screen_function import clear_screen
 
+
     if debug:
         print("Кодировка терминала:", terminal_encoding)
 
         
+    def response_vendor(mac_loc):   
+        url_service = "https://api.maclookup.app/v2/macs/"
+        stop_flag.clear() #Отображение исполняемого в фоне процесса 
+        status_text = "Запрос информации о вендоре" ########
+        t = threading.Thread(target=display_status, args=(status_text,)) ##########
+        t.start() ############
+        ######################
+        response = requests.get(f"{url_service}{mac_loc}", verify=False)    # Make a GET request to the API URL with SSL verification disabled
+        if response.status_code == 200: # Check if the request was successful
+            data = response.json()  # Convert the response content to JSON format
+        ######################
+        stop_flag.set()   #Окончание отображения исполняемого в фоне процесса
+        properties = ["company", "country", "updated"] # Display specific properties in a formatted list
+        for prop in properties:
+            print(f"        {KEY}{prop}{RESET}        {HOSTNAME}{data.get(prop, 'N/A')}{RESET}")
+        else:
+            return False
+    
+    
+    
     def enter_pass():    
         result = getpass.getpass(f"{INPUTLINE}Введите код доступа к ядру сети: {RESET}")
-        clear_screen()  # Call the function to clear the screen
+        if not debug: clear_screen()  # Call the function to clear the screen
         return result
 
     def is_valid_ip(ip_loc):
@@ -350,12 +370,6 @@ else:
         else:
             return False
 
-    def erase_line(count_string_loc):
-        for i in range (1,count_string_loc + 1):
-            print('\033[F', end='')  # Remove the previous line
-            print(' '*160)   # Replace the current line with spaces
-            print('\033[F', end='')  # Remove the previous line
-
     def output_info(device_name_loc, login_loc, LastLogOn_loc, ip_address_loc,mac_loc, ldap_srv, ldap_user, ldap_password):
         print(f"Информация об устройстве с физическим адресом {MAC}{mac_loc}{RESET}:")
         print('\n')
@@ -393,24 +407,7 @@ else:
                 print(f"        {KEY}logOn{RESET}          {VALUE}{LastLogOn}{RESET}")
         print('\n')
                 
-    def response_vendor(mac_loc):   
-        stop_flag.clear() #Отображение исполняемого в фоне процесса 
-        status_text = "Запрос информации о вендоре" ########
-        t = threading.Thread(target=display_status, args=(status_text,)) ##########
-        t.start() ############
-        ######################
-        response = requests.get(f"https://api.maclookup.app/v2/macs/{mac_loc}", verify=False)    # Make a GET request to the API URL with SSL verification disabled
-        if response.status_code == 200: # Check if the request was successful
-            data = response.json()  # Convert the response content to JSON format
-        ######################
-        stop_flag.set()   #Окончание отображения исполняемого в фоне процесса
-        properties = ["company", "country", "updated"] # Display specific properties in a formatted list
-        for prop in properties:
-            print(f"        {KEY}{prop}{RESET}        {HOSTNAME}{data.get(prop, 'N/A')}{RESET}")
-        else:
-            return False
-        
-                    
+                          
     def execute_script(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc, mac_loc,count_loc,ip_loc, device_name_loc, login_loc, LastLogOn_loc):
         channel, password_loc = open_channel(core_loc,hostname_loc, ssh_port_loc, username_loc, password_loc)
         if channel is not None:
@@ -553,11 +550,12 @@ else:
     stop_flag = threading.Event()
 
     while True:    
+        print('\n')
         print(f"{NOTIFICATION}--- Для выхода введите Выход, quit или q ---{RESET}")
         parametr = ''
         in_string = input(f"{INPUTLINE}Введите HostName, IP или MAC-адрес искомого устройства: {RESET}")
         parametr = in_string.lower()
-        clear_screen()
+        if not debug: clear_screen()  
         if parametr == "quit" or parametr == "q" or parametr == "выход":
             break
         if check_mac_address(parametr.strip()):  
@@ -572,7 +570,7 @@ else:
                     if len(login_list) == 1:                    
                         parametr = login_list[0]
                     else:
-                        input_index = display_and_select_list(displayName_list)
+                        input_index = display_and_select_list(displayName_list, debug)
                         parametr = login_list[input_index] 
 
             hostname_by_user, LastLogOn = response_base_srv(srv_base,'Users', username, password_base, parametr)
