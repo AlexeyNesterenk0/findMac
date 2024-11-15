@@ -49,13 +49,14 @@ else:
     import threading
     import time
     import locale
+    import ldap3
 
     global terminal_encoding 
     terminal_encoding = locale.getpreferredencoding()
     warnings.filterwarnings("ignore") # Filter out all warnings
 
     if not os.path.exists('config.ini'):    # Checking for file availability
-        print(f"Ошибка: Файл 'config.ini'' отсутствует.")
+        print(f"Ошибка: Файл 'config.ini' отсутствует.")
         sys.exit()  # Close the application
     config = configparser.ConfigParser()  # Creating a configuration object
     config.read('config.ini')   # Reading the configuration file
